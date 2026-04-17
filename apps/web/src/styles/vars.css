@@ -5,13 +5,13 @@
   --color-text-secondary: #a1a3a7;
   --color-text-disabled: #dddee0;
   --color-text-contrast: #ffffff;
-  --color-primary-dark: #3c3c3c;
-  --color-primary-main: #121312;
-  --color-primary-light: #636669;
-  --color-secondary-dark: #0fda6d;
-  --color-secondary-main: #12ff80;
-  --color-secondary-light: #b0ffc9;
-  --color-secondary-background: #effff4;
+  --color-primary-dark: #4520a8;
+  --color-primary-main: #5b2fd4;
+  --color-primary-light: #7b5cdb;
+  --color-secondary-dark: #c94d2f;
+  --color-secondary-main: #e85d3a;
+  --color-secondary-light: #f0a08a;
+  --color-secondary-background: #fff0ec;
   --color-border-main: #a1a3a7;
   --color-border-light: #dcdee0;
   --color-border-background: #f4f4f4;
@@ -40,18 +40,18 @@
   --color-background-main: #f5f5f5;
   --color-background-sheet: #f5f5f5;
   --color-background-paper: #ffffff;
-  --color-background-light: #effff4;
+  --color-background-light: #f3effe;
   --color-background-secondary: #dddee0;
   --color-background-skeleton: rgba(0, 0, 0, 0.04);
   --color-background-disabled: #7878801f;
   --color-backdrop-main: #636669;
-  --color-logo-main: #121312;
+  --color-logo-main: #5b2fd4;
   --color-logo-background: #eeeff0;
   --color-static-main: #121312;
   --color-static-light: #636669;
   --color-static-primary: #ffffff;
   --color-static-text-secondary: #a1a3a7;
-  --color-static-text-brand: #12ff80;
+  --color-static-text-brand: #5b2fd4;
   --space-1: 8px;
   --space-2: 16px;
   --space-3: 24px;
@@ -69,15 +69,15 @@
 [data-theme='dark'] {
   --color-text-primary: #ffffff;
   --color-text-secondary: #636669;
-  --color-text-disabled: #636669;
+  --color-text-disabled: rgba(255, 255, 255, 0.3);
   --color-text-contrast: #000000;
-  --color-primary-dark: #0cb259;
-  --color-primary-main: #12ff80;
+  --color-primary-dark: #9b7bf4;
+  --color-primary-main: #b49aff;
   --color-primary-light: #a1a3a7;
   --color-secondary-dark: #636669;
   --color-secondary-main: #ffffff;
-  --color-secondary-light: #b0ffc9;
-  --color-secondary-background: #1b2a22;
+  --color-secondary-light: #f0a08a;
+  --color-secondary-background: #2a1a1a;
   --color-border-main: #636669;
   --color-border-light: #303033;
   --color-border-background: #121312;
@@ -106,7 +106,7 @@
   --color-background-main: #121312;
   --color-background-sheet: #121312;
   --color-background-paper: #1c1c1c;
-  --color-background-light: #1b2a22;
+  --color-background-light: #1e1633;
   --color-background-secondary: #303033;
   --color-background-skeleton: rgba(255, 255, 255, 0.04);
   --color-background-disabled: #7878801f;
@@ -117,7 +117,7 @@
   --color-static-light: #636669;
   --color-static-primary: #ffffff;
   --color-static-text-secondary: #a1a3a7;
-  --color-static-text-brand: #12ff80;
+  --color-static-text-brand: #5b2fd4;
 }
 
 /* The same as above for the brief moment before JS loads */
@@ -125,15 +125,15 @@
   :root:not([data-theme='light']) {
     --color-text-primary: #ffffff;
     --color-text-secondary: #636669;
-    --color-text-disabled: #636669;
+    --color-text-disabled: rgba(255, 255, 255, 0.3);
     --color-text-contrast: #000000;
-    --color-primary-dark: #0cb259;
-    --color-primary-main: #12ff80;
+    --color-primary-dark: #9b7bf4;
+    --color-primary-main: #b49aff;
     --color-primary-light: #a1a3a7;
     --color-secondary-dark: #636669;
     --color-secondary-main: #ffffff;
-    --color-secondary-light: #b0ffc9;
-    --color-secondary-background: #1b2a22;
+    --color-secondary-light: #f0a08a;
+    --color-secondary-background: #2a1a1a;
     --color-border-main: #636669;
     --color-border-light: #303033;
     --color-border-background: #121312;
@@ -162,7 +162,7 @@
     --color-background-main: #121312;
     --color-background-sheet: #121312;
     --color-background-paper: #1c1c1c;
-    --color-background-light: #1b2a22;
+    --color-background-light: #1e1633;
     --color-background-secondary: #303033;
     --color-background-skeleton: rgba(255, 255, 255, 0.04);
     --color-background-disabled: #7878801f;
@@ -173,6 +173,6 @@
     --color-static-light: #636669;
     --color-static-primary: #ffffff;
     --color-static-text-secondary: #a1a3a7;
-    --color-static-text-brand: #12ff80;
+    --color-static-text-brand: #5b2fd4;
   }
 }

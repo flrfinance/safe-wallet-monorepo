@@ -57,10 +57,16 @@
 
 .logo img,
 .logo svg,
-.logoMobile svg {
+.logoMobile svg,
+.logoMobile img {
   width: auto;
   display: block;
   color: var(--color-logo-main);
+}
+
+[data-theme='dark'] .logo img,
+[data-theme='dark'] .logoMobile img {
+  filter: invert(1);
 }
 
 .logo {

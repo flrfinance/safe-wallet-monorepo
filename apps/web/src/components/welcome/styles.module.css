@@ -19,7 +19,7 @@
   align-items: flex-end;
   justify-content: space-between;
   overflow: hidden;
-  background: #121312;
+  background: linear-gradient(135deg, #6b3fa0 0%, #5b2fd4 30%, #7b4fe0 60%, #c98bb5 100%);
 }
 
 .leftSide {
