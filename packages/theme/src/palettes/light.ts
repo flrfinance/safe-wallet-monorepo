@@ -12,15 +12,15 @@ const lightPalette: ColorPalette = {
     contrast: '#FFFFFF',
   },
   primary: {
-    dark: '#3c3c3c',
-    main: '#121312',
-    light: '#636669',
+    dark: '#4520A8',
+    main: '#5B2FD4',
+    light: '#7B5CDB',
   },
   secondary: {
-    dark: '#0FDA6D',
-    main: '#12FF80',
-    light: '#B0FFC9',
-    background: '#EFFFF4',
+    dark: '#C94D2F',
+    main: '#E85D3A',
+    light: '#F0A08A',
+    background: '#FFF0EC',
   },
   border: {
     main: '#A1A3A7',
@@ -65,7 +65,7 @@ const lightPalette: ColorPalette = {
     main: '#F4F4F4',
     sheet: '#F4F4F4',
     paper: '#FFFFFF',
-    light: '#EFFFF4',
+    light: '#F3EFFE',
     secondary: '#DDDEE0',
     skeleton: 'rgba(0, 0, 0, 0.04)',
     disabled: '#7878801F',
@@ -74,7 +74,7 @@ const lightPalette: ColorPalette = {
     main: '#636669',
   },
   logo: {
-    main: '#121312',
+    main: '#5B2FD4',
     background: '#EEEFF0',
   },
   static: {
@@ -82,7 +82,7 @@ const lightPalette: ColorPalette = {
     light: '#636669',
     primary: '#FFFFFF',
     textSecondary: '#A1A3A7',
-    textBrand: '#12FF80',
+    textBrand: '#5B2FD4',
   },
 }
 
