@@ -22,7 +22,7 @@ const useIndexingStatus = () => {
 
 const STATUSES = {
   synced: {
-    color: 'success',
+    color: 'primary',
     text: 'Synced',
   },
   slow: {
