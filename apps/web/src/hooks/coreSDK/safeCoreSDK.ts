@@ -19,6 +19,7 @@ import {
   isL2MasterCopyCodeHash,
   resolveChainAgnosticContractAddresses,
 } from '@safe-global/utils/services/contracts/deployments'
+import { getContractOverrides } from '@/config/contract-overrides'
 import { logError, Errors } from '@/services/exceptions'
 
 export const initSafeSDK = async ({
@@ -142,6 +143,20 @@ export const initSafeSDK = async ({
         ...(canonicalMultiSendCallOnly && { multiSendCallOnlyAddress: canonicalMultiSendCallOnly }),
         ...(canonicalMultiSend && { multiSendAddress: canonicalMultiSend }),
       },
+    }
+  }
+
+  // Per-chain manual overrides for chains/versions not registered in
+  // @safe-global/safe-deployments. Applied last so it wins over both
+  // chain-agnostic resolution and the canonical-zkSync forced overrides.
+  const manualOverrides = getContractOverrides(chainId, safeVersion, isL1SafeSingleton)
+  if (manualOverrides) {
+    contractNetworks = {
+      ...contractNetworks,
+      [chainId]: {
+        ...contractNetworks?.[chainId],
+        ...manualOverrides,
+      } as ContractNetworksConfig[string],
     }
   }
 

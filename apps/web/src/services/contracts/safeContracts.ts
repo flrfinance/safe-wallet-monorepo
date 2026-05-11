@@ -3,6 +3,7 @@ import {
   isCanonicalDeployment,
   getCanonicalMultiSendCallOnlyAddress,
 } from '@safe-global/utils/services/contracts/deployments'
+import { getContractOverrides } from '@/config/contract-overrides'
 import { getSafeProvider } from '@/services/tx/tx-sender/sdk'
 import {
   SafeProvider,
@@ -107,10 +108,14 @@ export const getReadOnlyMultiSendCallOnlyContract = async (
     customContractAddress = getCanonicalMultiSendCallOnlyAddress(version)
   }
 
+  // Per-chain manual overrides win over the zkSync canonical fallback.
+  const overrideAddress = chainId ? getContractOverrides(chainId, version, true)?.multiSendCallOnlyAddress : undefined
+  const finalAddress = overrideAddress ?? customContractAddress
+
   return getMultiSendCallOnlyContract({
     safeProvider,
     safeVersion: _getValidatedGetContractProps(version).safeVersion,
-    customContracts: customContractAddress ? { multiSendCallOnlyAddress: customContractAddress } : undefined,
+    customContracts: finalAddress ? { multiSendCallOnlyAddress: finalAddress } : undefined,
   })
 }
 
