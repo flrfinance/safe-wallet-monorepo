@@ -10,10 +10,12 @@ type VersionedOverride = {
 
 const FLARE_CHAIN_ID = '14'
 
-// Flare mainnet (chainId 14) — Safe v1.3.0 deployments are not registered in
-// @safe-global/safe-deployments, so we inject them here. Both L1 (GnosisSafe)
-// and L2 (GnosisSafeL2) singletons are deployed; protocol-kit picks one via
-// `isL1SafeSingleton`, so we expose both addresses and let the caller decide.
+// Flare mainnet (chainId 14) — pinned to the eip155 deployments of Safe v1.3.0
+// because those are the addresses your existing on-chain batches were proposed
+// against (e.g. tx 0xf467e7…: to=0xA1dabEF…, multiSend executed successfully).
+// safe-deployments v1.37.54 lists chainId 14 as "canonical" only, which would
+// resolve the SDK to 0x40A2aCC… / 0x998870A…. We override to keep behaviour
+// identical to what historically worked.
 const FLARE_V1_3_0_OVERRIDES: Partial<ContractNetworkConfig> = {
   safeSingletonAddress: '0x69f4D1788e39c87893C980c06EdF4b7f686e2938',
   safeProxyFactoryAddress: '0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC',

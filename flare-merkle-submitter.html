@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flare Claim — WalletConnect</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+    <script defer src="https://unpkg.com/@walletconnect/ethereum-provider@2.17.0/dist/index.umd.js"></script>
+    <script defer src="https://unpkg.com/@walletconnect/modal@2.7.0/dist/index.umd.js"></script>
+    <style>
+      :root {
+        --bg: #0e1116;
+        --panel: #161b22;
+        --panel-2: #1f2530;
+        --border: #2a313c;
+        --fg: #e6edf3;
+        --muted: #8b949e;
+        --accent: #ff6a00;
+        --accent-2: #e05a00;
+        --ok: #3fb950;
+        --warn: #d29922;
+        --err: #f85149;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          14px/1.5 system-ui,
+          -apple-system,
+          Segoe UI,
+          Inter,
+          sans-serif;
+        padding: 24px;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 22px;
+      }
+      p.sub {
+        margin: 0 0 18px;
+        color: var(--muted);
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+      .panel h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      label {
+        display: block;
+        margin: 8px 0 4px;
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      input[type='text'],
+      input[type='number'],
+      textarea,
+      select {
+        width: 100%;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        color: var(--fg);
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      @media (max-width: 720px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: 0;
+        padding: 9px 16px;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover {
+        background: var(--accent-2);
+      }
+      button:disabled {
+        background: #555;
+        cursor: not-allowed;
+      }
+      button.ghost {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--fg);
+        font-weight: 500;
+      }
+      button.ghost:hover {
+        background: var(--panel-2);
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        color: var(--muted);
+      }
+      .pill.ok {
+        color: var(--ok);
+        border-color: #2e6e3a;
+      }
+      .pill.err {
+        color: var(--err);
+        border-color: #6e2e2e;
+      }
+      .pill.warn {
+        color: var(--warn);
+        border-color: #6e5a2e;
+      }
+      code {
+        font-family: var(--mono);
+        background: var(--panel-2);
+        padding: 1px 5px;
+        border-radius: 4px;
+        word-break: break-all;
+      }
+      .log {
+        background: #0a0d12;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px;
+        font-family: var(--mono);
+        font-size: 12px;
+        max-height: 260px;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+      .log .line {
+        margin: 0;
+      }
+      .log .ok {
+        color: var(--ok);
+      }
+      .log .err {
+        color: var(--err);
+      }
+      .log .warn {
+        color: var(--warn);
+      }
+      .log .muted {
+        color: var(--muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 10px;
+        letter-spacing: 0.05em;
+      }
+      .right {
+        text-align: right;
+      }
+      .total {
+        font-family: var(--mono);
+        font-size: 16px;
+        font-weight: 600;
+      }
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Flare Claim — WalletConnect</h1>
+      <p class="sub">
+        Connect any WalletConnect-compatible wallet that holds your Ledger (Rabby, MetaMask, Trust, Ledger Live mobile,
+        …), filter the JSON to your address, sign one transaction.
+      </p>
+
+      <!-- 0. WC project id -->
+      <div class="panel">
+        <h2>0. WalletConnect project ID</h2>
+        <p class="sub" style="margin: 0 0 8px">
+          Get a free ID at <a href="https://cloud.reown.com" target="_blank" rel="noopener">cloud.reown.com</a> (sign up
+          → Create project → copy "Project ID"). Saved in this browser for next time.
+        </p>
+        <input id="projectId" type="text" placeholder="paste WalletConnect project ID" />
+      </div>
+
+      <!-- 1. Wallet -->
+      <div class="panel">
+        <h2>1. Wallet</h2>
+        <div class="row">
+          <button id="connect">Connect via WalletConnect</button>
+          <button id="disconnect" class="ghost" disabled>Disconnect</button>
+          <span class="pill" id="wallet-pill">disconnected</span>
+          <span class="pill" id="chain-pill">—</span>
+        </div>
+        <div style="margin-top: 10px">Your address: <code id="address">—</code></div>
+      </div>
+
+      <!-- 2. Network -->
+      <div class="panel">
+        <h2>2. Network &amp; contract</h2>
+        <div class="grid-2">
+          <div>
+            <label>Chain</label>
+            <select id="chain">
+              <option value="14">Flare Mainnet (14)</option>
+              <option value="19">Songbird Mainnet (19)</option>
+              <option value="114">Coston2 (114)</option>
+              <option value="16">Coston (16)</option>
+            </select>
+          </div>
+          <div>
+            <label>RPC URL</label>
+            <input id="rpc" type="text" value="https://flare-api.flare.network/ext/C/rpc" />
+          </div>
+        </div>
+        <div style="margin-top: 8px">
+          <label>Reward Manager contract</label>
+          <input id="contract" type="text" placeholder="0x..." />
+        </div>
+      </div>
+
+      <!-- 3. JSON -->
+      <div class="panel">
+        <h2>3. Reward JSON</h2>
+        <div class="row" style="margin-bottom: 6px">
+          <input type="file" id="file" accept="application/json,.json" />
+          <button class="ghost" id="parse">Parse pasted JSON</button>
+          <span class="pill" id="parse-pill">no data</span>
+        </div>
+        <textarea id="json" placeholder='Paste {"rewardEpochId": 394, "rewardClaims": [...] }'></textarea>
+
+        <div style="margin-top: 12px">
+          <strong>Proofs matching your address:</strong>
+          <div id="my-proofs">—</div>
+        </div>
+      </div>
+
+      <!-- 4. Claim -->
+      <div class="panel">
+        <h2>4. Claim</h2>
+        <div class="grid-2">
+          <div>
+            <label>Recipient (defaults to your address)</label>
+            <input id="recipient" type="text" placeholder="0x..." />
+          </div>
+          <div>
+            <label>Wrap to WNAT?</label>
+            <select id="wrap">
+              <option value="false">No (receive native FLR)</option>
+              <option value="true">Yes (wrap into WNAT)</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top: 10px">
+          <button id="claim">Sign in wallet &amp; submit</button>
+          <button id="estimate" class="ghost">Estimate gas only</button>
+        </div>
+        <div class="log" id="log" style="margin-top: 12px"></div>
+      </div>
+    </div>
+
+    <script>
+      const ABI = [
+        'function claim(address _rewardOwner,address _recipient,uint24 _rewardEpochId,bool _wrap,(bytes32[] merkleProof,(uint24 rewardEpochId,bytes20 beneficiary,uint120 amount,uint8 claimType) body)[] _proofs) returns (uint256)',
+      ]
+      const FLARE_NETS = { 14: 'Flare Mainnet', 19: 'Songbird Mainnet', 16: 'Coston', 114: 'Coston2' }
+      const RPC_DEFAULTS = {
+        14: 'https://flare-api.flare.network/ext/C/rpc',
+        19: 'https://songbird-api.flare.network/ext/C/rpc',
+        114: 'https://coston2-api.flare.network/ext/C/rpc',
+        16: 'https://coston-api.flare.network/ext/C/rpc',
+      }
+      const CLAIM_TYPE_NAMES = { 0: 'DIRECT', 1: 'FEE', 2: 'WNAT (weight)', 3: 'MIRROR (weight)' }
+
+      const els = (id) => document.getElementById(id)
+      let wcProvider = null // raw EthereumProvider
+      let provider = null // ethers.BrowserProvider
+      let signer = null
+      let address = null
+      let parsed = null
+
+      function log(msg, cls = '') {
+        const el = document.createElement('div')
+        el.className = 'line ' + cls
+        el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`
+        els('log').appendChild(el)
+        els('log').scrollTop = els('log').scrollHeight
+      }
+      function setPill(id, text, cls) {
+        els(id).textContent = text
+        els(id).className = 'pill ' + (cls || '')
+      }
+
+      // Persist projectId & contract & chain across reloads
+      const LS = {
+        get(k, d = '') {
+          try {
+            return localStorage.getItem('flare-claim:' + k) ?? d
+          } catch {
+            return d
+          }
+        },
+        set(k, v) {
+          try {
+            localStorage.setItem('flare-claim:' + k, v)
+          } catch {}
+        },
+      }
+      els('projectId').value = LS.get('pid')
+      els('contract').value = LS.get('contract')
+      const savedChain = LS.get('chain')
+      if (savedChain) els('chain').value = savedChain
+      els('rpc').value = LS.get('rpc') || RPC_DEFAULTS[Number(els('chain').value)] || els('rpc').value
+      ;['projectId', 'contract', 'chain', 'rpc'].forEach((id) => {
+        els(id).addEventListener('change', () =>
+          LS.set({ projectId: 'pid', contract: 'contract', chain: 'chain', rpc: 'rpc' }[id], els(id).value),
+        )
+        els(id).addEventListener('input', () =>
+          LS.set({ projectId: 'pid', contract: 'contract', chain: 'chain', rpc: 'rpc' }[id], els(id).value),
+        )
+      })
+      els('chain').addEventListener('change', () => {
+        const def = RPC_DEFAULTS[Number(els('chain').value)]
+        if (def) {
+          els('rpc').value = def
+          LS.set('rpc', def)
+        }
+      })
+
+      // --- 1. Connect via WalletConnect --------------------------------------------
+      function findWCClass() {
+        // UMD nesting depends on bundler — try every plausible location.
+        const candidates = [
+          window.EthereumProvider,
+          window.EthereumProvider && window.EthereumProvider.EthereumProvider,
+          window.EthereumProvider && window.EthereumProvider.default,
+          window['@walletconnect/ethereum-provider'],
+          window['@walletconnect/ethereum-provider'] && window['@walletconnect/ethereum-provider'].EthereumProvider,
+          window['@walletconnect/ethereum-provider'] && window['@walletconnect/ethereum-provider'].default,
+          window.WalletConnectEthereumProvider,
+          window.WalletConnectEthereumProvider && window.WalletConnectEthereumProvider.EthereumProvider,
+        ]
+        for (const c of candidates) {
+          if (c && typeof c.init === 'function') return c
+        }
+        return null
+      }
+
+      function findWCModalClass() {
+        const candidates = [
+          window.WalletConnectModal,
+          window.WalletConnectModal && window.WalletConnectModal.WalletConnectModal,
+          window.WalletConnectModal && window.WalletConnectModal.default,
+          window['@walletconnect/modal'],
+          window['@walletconnect/modal'] && window['@walletconnect/modal'].WalletConnectModal,
+        ]
+        for (const c of candidates) {
+          if (typeof c === 'function') return c
+        }
+        return null
+      }
+
+      async function waitForScripts(timeoutMs = 8000) {
+        const start = Date.now()
+        while (Date.now() - start < timeoutMs) {
+          if (findWCClass() && findWCModalClass()) return true
+          await new Promise((r) => setTimeout(r, 100))
+        }
+        return false
+      }
+
+      async function connect() {
+        log('Connect clicked.')
+        console.log('[wc] connect clicked')
+        try {
+          // Wipe any stuck WC session from previous runs
+          try {
+            for (const k of Object.keys(localStorage)) {
+              if (
+                k.startsWith('wc@2') ||
+                k.startsWith('walletconnect') ||
+                k.startsWith('@w3m/') ||
+                k.startsWith('WALLETCONNECT')
+              ) {
+                localStorage.removeItem(k)
+              }
+            }
+          } catch {}
+
+          log('Waiting for WalletConnect scripts to finish loading…')
+          const ready = await waitForScripts()
+          if (!ready) {
+            log("WalletConnect scripts didn't load. unpkg.com is probably blocked on this network.", 'err')
+            return
+          }
+
+          let EthereumProvider = findWCClass()
+          const WalletConnectModalClass = findWCModalClass()
+          console.log('[wc] EthereumProvider:', EthereumProvider, 'WalletConnectModal:', WalletConnectModalClass)
+          if (!EthereumProvider) {
+            // Fall back to ESM bundle if the UMD shape isn't right
+            log('UMD shape unexpected — falling back to ESM bundle…', 'warn')
+            try {
+              const mod = await import('https://esm.sh/@walletconnect/ethereum-provider@2.17.0?bundle')
+              EthereumProvider = mod.EthereumProvider || mod.default || mod
+            } catch (e) {
+              log('ESM fallback failed: ' + (e?.message || String(e)), 'err')
+            }
+          }
+          if (!EthereumProvider || typeof EthereumProvider.init !== 'function') {
+            log('Could not locate EthereumProvider.init — check network/ad-blockers and reload.', 'err')
+            console.log('window.EthereumProvider was:', window.EthereumProvider)
+            return
+          }
+          const projectId = els('projectId').value.trim()
+          if (!projectId) {
+            log('Paste a WalletConnect project ID first (free at cloud.reown.com).', 'err')
+            return
+          }
+          const chainId = Number(els('chain').value)
+          const rpcUrl = els('rpc').value.trim()
+
+          log('Initialising WalletConnect…')
+          console.log('[wc] init with chainId', chainId, 'projectId', projectId.slice(0, 6) + '…')
+          wcProvider = await EthereumProvider.init({
+            projectId,
+            chains: [chainId],
+            optionalChains: [chainId],
+            rpcMap: { [chainId]: rpcUrl },
+            showQrModal: false,
+            metadata: {
+              name: 'Flare Claim',
+              description: 'Claim Flare rewards from a Merkle proof JSON',
+              url: location.origin || 'https://localhost',
+              icons: ['https://flare.network/favicon.ico'],
+            },
+          })
+
+          const wcModal = new WalletConnectModalClass({
+            projectId,
+            chains: [`eip155:${chainId}`],
+            themeMode: 'dark',
+          })
+
+          wcProvider.on('disconnect', () => {
+            setPill('wallet-pill', 'disconnected')
+            setPill('chain-pill', '—')
+            address = signer = provider = null
+            els('address').textContent = '—'
+            els('disconnect').disabled = true
+            try {
+              wcModal.closeModal()
+            } catch {}
+            log('Disconnected.', 'warn')
+          })
+
+          wcProvider.on('display_uri', (uri) => {
+            console.log('[wc] display_uri:', uri)
+            log('Pairing URI received — opening WalletConnect modal.')
+            wcModal.openModal({ uri })
+          })
+
+          console.log('[wc] init done, provider:', wcProvider)
+          log('Init done, requesting pairing — scan the QR with a WalletConnect-compatible wallet holding your Ledger.')
+          await wcProvider.connect()
+          console.log('[wc] connect() resolved')
+          try {
+            wcModal.closeModal()
+          } catch {}
+
+          provider = new ethers.BrowserProvider(wcProvider)
+          signer = await provider.getSigner()
+          address = ethers.getAddress(await signer.getAddress())
+
+          const net = await provider.getNetwork()
+          const name = FLARE_NETS[Number(net.chainId)] || `Chain ${net.chainId}`
+          els('address').textContent = address
+          setPill('wallet-pill', 'connected', 'ok')
+          setPill('chain-pill', name, FLARE_NETS[Number(net.chainId)] ? 'ok' : 'warn')
+          els('disconnect').disabled = false
+          if (!els('recipient').value) els('recipient').value = address
+          log(`Connected: ${address} on ${name}`, 'ok')
+          refreshMyProofs()
+        } catch (e) {
+          console.error('[wc] connect error', e)
+          log('Connect failed: ' + (e?.message || String(e)), 'err')
+          setPill('wallet-pill', 'error', 'err')
+        }
+      }
+      els('connect').addEventListener('click', connect)
+
+      els('disconnect').addEventListener('click', async () => {
+        try {
+          await wcProvider?.disconnect()
+        } catch {}
+      })
+
+      // --- 2. JSON -----------------------------------------------------------------
+      function parseInput(text) {
+        let data
+        try {
+          data = JSON.parse(text)
+        } catch (e) {
+          throw new Error('Invalid JSON: ' + e.message)
+        }
+        if (!Array.isArray(data.rewardClaims)) throw new Error('Expected `rewardClaims` array.')
+        return data
+      }
+
+      function refreshMyProofs() {
+        const target = els('my-proofs')
+        target.innerHTML = ''
+        if (!parsed) {
+          target.textContent = '—'
+          return
+        }
+        if (!address) {
+          target.innerHTML = `<span class="pill warn">connect wallet first</span>`
+          return
+        }
+
+        const mine = parsed.rewardClaims.filter((c) => c.body.beneficiary.toLowerCase() === address.toLowerCase())
+
+        if (mine.length === 0) {
+          target.innerHTML = `<span class="pill err">No proofs found for ${address} in this epoch.</span>
+      <div class="sub" style="margin-top:6px;">If you're a delegator with no direct leaf, you'd claim by passing the proofs of the providers you delegated to — that's not handled by this simple app.</div>`
+          return
+        }
+
+        let total = 0n
+        let html = `<table><thead><tr><th>Type</th><th>Epoch</th><th class="right">Amount (wei)</th></tr></thead><tbody>`
+        for (const c of mine) {
+          total += BigInt(c.body.amount)
+          html += `<tr>
+      <td>${c.body.claimType} — ${CLAIM_TYPE_NAMES[c.body.claimType] || '?'}</td>
+      <td>${c.body.rewardEpochId}</td>
+      <td class="right">${c.body.amount}</td>
+    </tr>`
+        }
+        html += `</tbody></table>
+    <div style="margin-top:8px;">Total: <span class="total">${ethers.formatUnits(total, 18)}</span> FLR</div>`
+        target.innerHTML = html
+      }
+
+      function tryParse() {
+        try {
+          parsed = parseInput(els('json').value)
+          setPill('parse-pill', `${parsed.rewardClaims.length} claims, epoch ${parsed.rewardEpochId}`, 'ok')
+          log(`Parsed ${parsed.rewardClaims.length} claims (epoch ${parsed.rewardEpochId}).`)
+          refreshMyProofs()
+        } catch (e) {
+          parsed = null
+          setPill('parse-pill', 'parse failed', 'err')
+          log(e.message, 'err')
+        }
+      }
+      els('parse').addEventListener('click', tryParse)
+      els('file').addEventListener('change', async (e) => {
+        const f = e.target.files[0]
+        if (!f) return
+        els('json').value = await f.text()
+        tryParse()
+      })
+
+      // --- 3. Build & send ---------------------------------------------------------
+      function buildMyProofs() {
+        if (!parsed) throw new Error('Load the JSON first.')
+        if (!address) throw new Error('Connect wallet first.')
+        const mine = parsed.rewardClaims.filter((c) => c.body.beneficiary.toLowerCase() === address.toLowerCase())
+        if (mine.length === 0) throw new Error(`No proofs in this JSON match ${address}.`)
+        return mine.map((c) => ({
+          merkleProof: c.merkleProof,
+          body: {
+            rewardEpochId: c.body.rewardEpochId,
+            beneficiary: c.body.beneficiary,
+            amount: BigInt(c.body.amount),
+            claimType: c.body.claimType,
+          },
+        }))
+      }
+
+      function getContract() {
+        const addr = els('contract').value.trim()
+        if (!ethers.isAddress(addr)) throw new Error('Invalid contract address.')
+        if (!signer) throw new Error('Connect wallet first.')
+        return new ethers.Contract(addr, ABI, signer)
+      }
+
+      els('estimate').addEventListener('click', async () => {
+        try {
+          const c = getContract()
+          const proofs = buildMyProofs()
+          const recipient = els('recipient').value.trim() || address
+          const epoch = proofs[0].body.rewardEpochId
+          const wrap = els('wrap').value === 'true'
+          log('Estimating gas…')
+          const gas = await c.claim.estimateGas(address, recipient, epoch, wrap, proofs)
+          log(`Estimated gas: ${gas.toString()}`, 'ok')
+        } catch (e) {
+          log('Estimate failed: ' + (e.shortMessage || e.message || String(e)), 'err')
+        }
+      })
+
+      els('claim').addEventListener('click', async () => {
+        els('claim').disabled = true
+        try {
+          const c = getContract()
+          const proofs = buildMyProofs()
+          const recipient = els('recipient').value.trim() || address
+          const epoch = proofs[0].body.rewardEpochId
+          const wrap = els('wrap').value === 'true'
+          log(
+            `claim(owner=${address}, recipient=${recipient}, epoch=${epoch}, wrap=${wrap}, proofs=${proofs.length}). Confirm in your wallet / on your Ledger…`,
+          )
+          const tx = await c.claim(address, recipient, epoch, wrap, proofs)
+          log(`tx sent: ${tx.hash}`, 'ok')
+          const rec = await tx.wait()
+          log(`mined in block ${rec.blockNumber}, gas used ${rec.gasUsed}.`, 'ok')
+        } catch (e) {
+          log('Claim failed: ' + (e.shortMessage || e.message || String(e)), 'err')
+        } finally {
+          els('claim').disabled = false
+        }
+      })
+
+      log('Ready. Paste a WalletConnect project ID, click Connect, scan the QR with your wallet.', 'muted')
+    </script>
+  </body>
+</html>
