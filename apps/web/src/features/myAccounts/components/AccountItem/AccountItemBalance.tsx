@@ -1,8 +1,8 @@
-import { Skeleton } from '@mui/material'
+import { Skeleton } from '@safe-global/views/components/ui/skeleton'
 import FiatValue from '@/components/common/FiatValue'
-import { Typography } from '@/components/ui/typography'
-import css from '../AccountItems/styles.module.css'
-import { cn } from '@/utils/cn'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import css from '@safe-global/views/features/myAccounts/components/AccountItems/styles.module.css'
+import { cn } from '@safe-global/views/utils/cn'
 
 export interface AccountItemBalanceProps {
   fiatTotal?: string | number
@@ -30,7 +30,7 @@ function AccountItemBalance({
           <FiatValue value={fiatTotal} />
         </Typography>
       ) : isLoading ? (
-        <Skeleton variant="text" width={60} />
+        <Skeleton className="h-4 w-[60px]" />
       ) : null}
     </div>
   )

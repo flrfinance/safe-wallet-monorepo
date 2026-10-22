@@ -1,16 +1,16 @@
 import classnames from 'classnames'
 import type { ReactElement, ReactNode, SyntheticEvent } from 'react'
 import { isAddress } from 'ethers'
-import { useTheme } from '@mui/material/styles'
-import { Box, SvgIcon, Tooltip } from '@mui/material'
+import NextLink, { type LinkProps } from 'next/link'
+import { Cloud } from 'lucide-react'
 import AddressBookIcon from '@/public/images/sidebar/address-book.svg'
-import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined'
-import useMediaQuery from '@mui/material/useMediaQuery'
+import { useIsBelowSm } from '@/hooks/useMediaQuery'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@safe-global/views/components/ui/tooltip'
 import Identicon from '../../Identicon'
 import CopyAddressButton from '../../CopyAddressButton'
-import ExplorerButton, { type ExplorerButtonProps } from '../../ExplorerButton'
+import ExplorerButton, { type ExplorerButtonProps } from '@safe-global/views/components/common/ExplorerButton'
 import { shortenAddress } from '@safe-global/utils/utils/formatters'
-import ImageFallback from '../../ImageFallback'
+import ImageFallback from '@safe-global/views/components/common/ImageFallback'
 import css from './styles.module.css'
 import { ContactSource } from '@/hooks/useAllAddressBooks'
 
@@ -23,7 +23,6 @@ export type EthHashInfoProps = {
   showCopyButton?: boolean
   prefix?: string
   showPrefix?: boolean
-  copyPrefix?: boolean
   shortAddress?: boolean
   copyAddress?: boolean
   customAvatar?: string | null
@@ -35,6 +34,12 @@ export type EthHashInfoProps = {
   addressBookNameSource?: ContactSource
   highlight4bytes?: boolean
   badgeTooltip?: ReactNode
+  /** Links the account's label: its name, or the address when unnamed */
+  href?: LinkProps['href']
+  /** Sets the account's label in bold: its name, or the address when unnamed */
+  boldLabel?: boolean
+  /** Shows the full address, instead of the copy hint, when hovering the address */
+  showAddressTooltip?: boolean
 }
 
 const stopPropagation = (e: SyntheticEvent) => e.stopPropagation()
@@ -43,7 +48,6 @@ const SrcEthHashInfo = ({
   address,
   customAvatar,
   prefix = '',
-  copyPrefix = true,
   showPrefix = true,
   shortAddress = true,
   copyAddress = true,
@@ -59,12 +63,13 @@ const SrcEthHashInfo = ({
   addressBookNameSource,
   highlight4bytes = false,
   badgeTooltip,
+  href,
+  boldLabel = false,
+  showAddressTooltip = false,
 }: EthHashInfoProps): ReactElement => {
   const shouldPrefix = isAddress(address)
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const isMobile = useIsBelowSm()
   const identicon = <Identicon address={address} size={avatarSize} />
-  const shouldCopyPrefix = shouldPrefix && copyPrefix
 
   const accountStylesWithBadge = badgeTooltip
     ? {
@@ -108,69 +113,80 @@ const SrcEthHashInfo = ({
         </div>
       )}
 
-      <Box overflow="hidden" className={onlyName ? css.inline : undefined} gap={0.5}>
+      <div className={classnames('gap-1 overflow-hidden', { [css.inline]: onlyName })}>
         {!!name ? (
-          <Box
+          <div
             title={name}
-            className="ethHashInfo-name"
-            display="flex"
-            alignItems="center"
-            gap={0.5}
-            sx={accountStylesWithBadge}
+            className={classnames('ethHashInfo-name flex items-center gap-1', { 'font-bold': boldLabel })}
+            style={accountStylesWithBadge}
           >
-            <Box overflow="hidden" textOverflow="ellipsis">
-              {name}
-            </Box>
+            {href ? (
+              <NextLink href={href} className="overflow-hidden text-ellipsis text-inherit hover:underline">
+                {name}
+              </NextLink>
+            ) : (
+              <div className="overflow-hidden text-ellipsis">{name}</div>
+            )}
 
             {badgeTooltip
               ? badgeTooltip
               : !!addressBookNameSource && (
-                  <Tooltip title={`From your ${addressBookNameSource} address book`} placement="top">
-                    <span style={{ lineHeight: 0 }}>
-                      <SvgIcon
-                        component={addressBookNameSource === ContactSource.local ? AddressBookIcon : CloudOutlinedIcon}
-                        inheritViewBox
-                        color="border"
-                        fontSize="small"
-                      />
-                    </span>
+                  <Tooltip>
+                    <TooltipTrigger render={<span style={{ lineHeight: 0 }} />}>
+                      {addressBookNameSource === ContactSource.local ? (
+                        <AddressBookIcon className="size-5 text-[var(--color-border-main)]" />
+                      ) : (
+                        <Cloud className="size-5 text-[var(--color-border-main)]" />
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      From your {addressBookNameSource === ContactSource.space ? 'Workspace' : 'local'} address book
+                    </TooltipContent>
                   </Tooltip>
                 )}
-          </Box>
+          </div>
         ) : (
-          badgeTooltip && (
-            <Box display="flex" alignItems="center" gap={0.5}>
-              {badgeTooltip}
-            </Box>
-          )
+          badgeTooltip && <div className="flex items-center gap-1">{badgeTooltip}</div>
         )}
 
         <div className={classnames(css.addressContainer, { [css.inline]: onlyName })}>
           {(!onlyName || !name) && (
-            <Box fontWeight="inherit" fontSize="inherit" overflow="hidden" textOverflow="ellipsis">
-              {copyAddress ? (
-                <CopyAddressButton prefix={prefix} address={address} copyPrefix={shouldCopyPrefix} trusted={trusted}>
+            <div
+              className={classnames(
+                'overflow-hidden text-ellipsis',
+                boldLabel && !name ? 'font-bold' : 'font-[weight:inherit]',
+                'text-[length:inherit]',
+              )}
+            >
+              {href && !name ? (
+                <NextLink href={href} className="text-inherit hover:underline">
+                  {addressElement}
+                </NextLink>
+              ) : copyAddress ? (
+                <CopyAddressButton
+                  address={address}
+                  trusted={trusted}
+                  initialToolTipText={showAddressTooltip ? address : undefined}
+                >
                   {addressElement}
                 </CopyAddressButton>
               ) : (
                 addressElement
               )}
-            </Box>
+            </div>
           )}
 
-          {showCopyButton && (
-            <CopyAddressButton prefix={prefix} address={address} copyPrefix={shouldCopyPrefix} trusted={trusted} />
-          )}
+          {showCopyButton && <CopyAddressButton address={address} trusted={trusted} />}
 
           {hasExplorer && ExplorerButtonProps && (
-            <Box color="border.main">
+            <div className="text-[var(--color-border-main)]">
               <ExplorerButton {...ExplorerButtonProps} onClick={stopPropagation} />
-            </Box>
+            </div>
           )}
 
           {children}
         </div>
-      </Box>
+      </div>
     </div>
   )
 }

@@ -1,12 +1,22 @@
 import type { TransactionDetails, TransactionData } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
-import { Fragment, useMemo, type ReactElement } from 'react'
-import { Box, Divider, Stack, Typography } from '@mui/material'
-import CheckIcon from '@mui/icons-material/Check'
+import { useContext, useMemo, type ReactElement, type ReactNode } from 'react'
+import { Check } from 'lucide-react'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@safe-global/views/components/ui/tooltip'
+import TokenIcon from '@/components/common/TokenIcon'
+import useBalances from '@/hooks/useBalances'
+import { ZERO_ADDRESS } from '@safe-global/utils/utils/constants'
+import { sameAddress } from '@safe-global/utils/utils/addresses'
+import { cn } from '@safe-global/views/utils/cn'
 import type { SafeTransaction } from '@safe-global/types-kit'
-import { PaperViewToggle } from '../../common/PaperViewToggle'
+import { PaperViewToggle } from '@safe-global/views/components/common/PaperViewToggle'
 import EthHashInfo from '@/components/common/EthHashInfo'
 import { Operation } from '@safe-global/store/gateway/types'
 import { HexEncodedData } from '@/components/transactions/HexEncodedData'
+import { SafeTxContext } from '@/components/tx-flow/SafeTxProvider'
+import { isGtfFeePreviewAvailable, useGtfFeePreview } from '@/features/gtf'
+import useSafeInfo from '@/hooks/useSafeInfo'
+import { useCurrentChain } from '@/hooks/useChains'
 import {
   useDomainHash,
   useMessageHash,
@@ -24,57 +34,134 @@ type ReceiptProps = {
   txInfo?: TransactionDetails['txInfo']
   grid?: boolean
   withSignatures?: boolean
+  outlined?: boolean
 }
 
-const ScrollWrapper = ({ children }: { children: ReactElement | ReactElement[] }) => (
-  <Box sx={{ maxHeight: '550px', flex: 1, overflowY: 'auto', px: 2, pt: 1, mt: '0 !important' }}>{children}</Box>
+const ScrollWrapper = ({ children, padded = true }: { children: ReactElement | ReactElement[]; padded?: boolean }) => (
+  <div className={cn('max-h-[550px] flex-1 overflow-y-auto', padded && 'px-4 pt-2')}>{children}</div>
 )
 
-export const Receipt = ({ safeTxData, txData, txDetails, txInfo, grid, withSignatures = false }: ReceiptProps) => {
-  const safeTxHash = useSafeTxHash({ safeTxData })
-  const domainHash = useDomainHash()
-  const messageHash = useMessageHash({ safeTxData })
-  const operation = Number(safeTxData.operation) as Operation
+const DataStack = ({ children }: { children: ReactNode }) => (
+  <div className="flex flex-col divide-y divide-[var(--color-border-light)] [&>*]:py-2 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+    {children}
+  </div>
+)
 
-  const ToWrapper = grid ? Box : Fragment
+export const Receipt = ({
+  safeTxData,
+  txData,
+  txDetails,
+  txInfo,
+  grid,
+  withSignatures = false,
+  outlined = false,
+}: ReceiptProps) => {
+  const chain = useCurrentChain()
+  const { safe, safeAddress } = useSafeInfo()
+  const { safeTx, gtfPaymentMode, gtfSelectedGasToken } = useContext(SafeTxContext)
+  const { balances } = useBalances()
+  const operation = Number(safeTxData.operation) as Operation
 
   const confirmations = useMemo(() => {
     const detailedExecutionInfo = txDetails?.detailedExecutionInfo
     return isMultisigDetailedExecutionInfo(detailedExecutionInfo) ? detailedExecutionInfo.confirmations : []
   }, [txDetails?.detailedExecutionInfo])
 
+  const shouldPreviewGtf =
+    isGtfFeePreviewAvailable(chain) &&
+    (!safeTx || safeTx.signatures.size === 0) &&
+    gtfPaymentMode === 'safe' &&
+    !!gtfSelectedGasToken
+  const displayGasToken = shouldPreviewGtf ? gtfSelectedGasToken : safeTxData.gasToken
+  // Show which token actually pays the gas — the logo/symbol of the native currency or of the held
+  // ERC-20 — beside the bare address, which on its own says nothing about what is being spent.
+  const isNativeGasToken = displayGasToken === ZERO_ADDRESS
+  const heldToken = isNativeGasToken
+    ? undefined
+    : balances.items.find((b) => sameAddress(b.tokenInfo.address, displayGasToken))
+  const gasTokenLogo = isNativeGasToken ? chain?.nativeCurrency.logoUri : heldToken?.tokenInfo.logoUri
+  const gasTokenSymbol = isNativeGasToken ? chain?.nativeCurrency.symbol : heldToken?.tokenInfo.symbol
+
+  const { data: previewData } = useGtfFeePreview({
+    enabled: shouldPreviewGtf,
+    safeTx,
+    chain,
+    safeAddress,
+    gasToken: gtfSelectedGasToken,
+    numberSignatures: safe.threshold,
+  })
+
+  const previewTxData = shouldPreviewGtf ? previewData?.txData : undefined
+  const displayRefundReceiver = previewTxData?.refundReceiver ?? safeTxData.refundReceiver
+  const displaySafeTxGas = previewTxData?.safeTxGas ?? safeTxData.safeTxGas
+  const displayBaseGas = previewTxData?.baseGas ?? safeTxData.baseGas
+  const displayGasPrice = previewTxData?.gasPrice ?? safeTxData.gasPrice
+
+  // The payload actually signed in Safe-pays carries the merged GTF fee fields. Build it once so the
+  // Data/JSON/Hashes tabs all reflect what the wallet will sign and not the bare pre-merge safeTx.
+  const displaySafeTxData = useMemo(
+    () => ({
+      ...safeTxData,
+      safeTxGas: displaySafeTxGas,
+      baseGas: displayBaseGas,
+      gasPrice: displayGasPrice,
+      gasToken: displayGasToken,
+      refundReceiver: displayRefundReceiver,
+    }),
+    [safeTxData, displaySafeTxGas, displayBaseGas, displayGasPrice, displayGasToken, displayRefundReceiver],
+  )
+
+  const safeTxHash = useSafeTxHash({ safeTxData: displaySafeTxData })
+  const domainHash = useDomainHash()
+  const messageHash = useMessageHash({ safeTxData: displaySafeTxData })
+
+  const toAddress = (
+    <EthHashInfo
+      address={safeTxData.to}
+      avatarSize={20}
+      showPrefix={false}
+      showName={false}
+      shortAddress={false}
+      hasExplorer
+      showAvatar
+      highlight4bytes
+    />
+  )
+
   return (
-    <PaperViewToggle activeView={0} leftAlign={grid}>
+    <PaperViewToggle activeView={0} leftAlign={grid} outlined={outlined}>
       {[
         {
           title: 'Data',
           content: (
-            <ScrollWrapper>
-              <Stack spacing={1} divider={<Divider />}>
+            <ScrollWrapper padded={!outlined}>
+              <DataStack>
                 <TxDetailsRow label="To" grid={grid}>
-                  <ToWrapper>
-                    <NameChip txData={txData} txInfo={txInfo} />
+                  {grid ? (
+                    <div>
+                      <span className="inline-flex -ml-2.5">
+                        <NameChip txData={txData} txInfo={txInfo} />
+                      </span>
 
-                    <Typography
-                      variant="body2"
-                      mt={grid ? 0.75 : 0}
-                      width={grid ? undefined : '100%'}
-                      sx={{
-                        '& *': { whiteSpace: 'normal', wordWrap: 'break-word', alignItems: 'flex-start !important' },
-                      }}
-                    >
-                      <EthHashInfo
-                        address={safeTxData.to}
-                        avatarSize={20}
-                        showPrefix={false}
-                        showName={false}
-                        shortAddress={false}
-                        hasExplorer
-                        showAvatar
-                        highlight4bytes
-                      />
-                    </Typography>
-                  </ToWrapper>
+                      <Typography
+                        variant="paragraph-small"
+                        className="mt-1.5 [&_*]:whitespace-normal [&_*]:break-words [&_*]:!items-start"
+                      >
+                        {toAddress}
+                      </Typography>
+                    </div>
+                  ) : (
+                    <>
+                      <NameChip txData={txData} txInfo={txInfo} />
+
+                      <Typography
+                        variant="paragraph-small"
+                        className="w-full text-right [&>*]:justify-end [&_*]:whitespace-normal [&_*]:break-words [&_*]:!items-start"
+                      >
+                        {toAddress}
+                      </Typography>
+                    </>
+                  )}
                 </TxDetailsRow>
 
                 <TxDetailsRow label="Value" grid={grid}>
@@ -82,47 +169,58 @@ export const Receipt = ({ safeTxData, txData, txDetails, txInfo, grid, withSigna
                 </TxDetailsRow>
 
                 <TxDetailsRow label="Data" grid={grid}>
-                  <Typography variant="body2" width={grid ? '70%' : undefined}>
+                  <Typography variant="paragraph-small" className={grid ? 'w-[70%]' : undefined}>
                     <HexEncodedData hexData={safeTxData.data} limit={140} />
                   </Typography>
                 </TxDetailsRow>
 
                 <TxDetailsRow label="Operation" grid={grid}>
-                  <Typography variant="body2" display="flex" alignItems="center" gap={0.5}>
+                  <Typography variant="paragraph-small" className="flex items-center gap-1">
                     {safeTxData.operation} ({operation === Operation.CALL ? 'call' : 'delegate call'})
-                    {operation === Operation.CALL && <CheckIcon color="success" fontSize="inherit" />}
+                    {operation === Operation.CALL && <Check className="size-[1em] text-[var(--color-success-main)]" />}
                   </Typography>
                 </TxDetailsRow>
 
                 <TxDetailsRow label="SafeTxGas" grid={grid}>
-                  {safeTxData.safeTxGas}
+                  {displaySafeTxGas}
                 </TxDetailsRow>
 
                 <TxDetailsRow label="BaseGas" grid={grid}>
-                  {safeTxData.baseGas}
+                  {displayBaseGas}
                 </TxDetailsRow>
 
                 <TxDetailsRow label="GasPrice" grid={grid}>
-                  {safeTxData.gasPrice}
+                  {displayGasPrice}
                 </TxDetailsRow>
 
                 <TxDetailsRow label="GasToken" grid={grid}>
-                  <Typography variant="body2">
+                  <Typography variant="paragraph-small">
                     <EthHashInfo
-                      address={safeTxData.gasToken}
-                      avatarSize={20}
+                      address={displayGasToken}
+                      showAvatar={false}
                       showPrefix={false}
                       showName={false}
                       shortAddress
                       hasExplorer
-                    />
+                    >
+                      {gasTokenLogo && gasTokenSymbol && (
+                        <Tooltip>
+                          <TooltipTrigger render={<span className="inline-flex" />}>
+                            <TokenIcon logoUri={gasTokenLogo} tokenSymbol={gasTokenSymbol} size={16} />
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            The GasToken address is the address of the token used to pay gas fees.
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </EthHashInfo>
                   </Typography>
                 </TxDetailsRow>
 
                 <TxDetailsRow label="RefundReceiver" grid={grid}>
-                  <Typography variant="body2">
+                  <Typography variant="paragraph-small">
                     <EthHashInfo
-                      address={safeTxData.refundReceiver}
+                      address={displayRefundReceiver}
                       avatarSize={20}
                       showPrefix={false}
                       shortAddress
@@ -146,24 +244,24 @@ export const Receipt = ({ safeTxData, txData, txDetails, txInfo, grid, withSigna
                           key={`signature-${index}`}
                           grid={grid}
                         >
-                          <Typography variant="body2" width={grid ? '70%' : undefined}>
+                          <Typography variant="paragraph-small" className={grid ? 'w-[70%]' : undefined}>
                             <HexEncodedData hexData={signature} highlightFirstBytes={false} limit={30} />
                           </Typography>
                         </TxDetailsRow>
                       ),
                   )}
-              </Stack>
+              </DataStack>
             </ScrollWrapper>
           ),
         },
         {
           title: 'Hashes',
           content: (
-            <ScrollWrapper>
-              <Stack spacing={1} divider={<Divider />}>
+            <ScrollWrapper padded={!outlined}>
+              <DataStack>
                 {domainHash && (
                   <TxDetailsRow label="Domain hash" grid={grid}>
-                    <Typography variant="body2" width="100%" sx={{ wordWrap: 'break-word' }}>
+                    <Typography variant="paragraph-small" className="w-full break-words">
                       <HexEncodedData hexData={domainHash} limit={66} highlightFirstBytes={false} />
                     </Typography>
                   </TxDetailsRow>
@@ -171,7 +269,7 @@ export const Receipt = ({ safeTxData, txData, txDetails, txInfo, grid, withSigna
 
                 {messageHash && (
                   <TxDetailsRow label="Message hash" grid={grid}>
-                    <Typography variant="body2" width="100%" sx={{ wordWrap: 'break-word' }}>
+                    <Typography variant="paragraph-small" className="w-full break-words">
                       <HexEncodedData hexData={messageHash} limit={66} highlightFirstBytes={false} />
                     </Typography>
                   </TxDetailsRow>
@@ -179,20 +277,20 @@ export const Receipt = ({ safeTxData, txData, txDetails, txInfo, grid, withSigna
 
                 {safeTxHash && (
                   <TxDetailsRow label="safeTxHash" grid={grid}>
-                    <Typography variant="body2" width="100%" sx={{ wordWrap: 'break-word' }}>
+                    <Typography variant="paragraph-small" className="w-full break-words">
                       <HexEncodedData hexData={safeTxHash} limit={66} highlightFirstBytes={false} />
                     </Typography>
                   </TxDetailsRow>
                 )}
-              </Stack>
+              </DataStack>
             </ScrollWrapper>
           ),
         },
         {
           title: 'JSON',
           content: (
-            <ScrollWrapper>
-              <JsonView data={safeTxData} />
+            <ScrollWrapper padded={!outlined}>
+              <JsonView data={displaySafeTxData} />
             </ScrollWrapper>
           ),
         },

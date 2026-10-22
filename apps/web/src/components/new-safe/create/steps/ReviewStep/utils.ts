@@ -1,6 +1,7 @@
 import { ExecutionMethod } from '@/components/tx/ExecutionMethodSelector'
 import { PayMethod } from '@safe-global/utils/features/counterfactual/types'
 import type { TransactionOptions } from '@safe-global/types-kit'
+import { AppRoutes } from '@/config/routes'
 
 /**
  * Returns the pluralized network label based on the number of networks.
@@ -15,6 +16,25 @@ export function getNetworkLabel(networkCount: number): string {
 export function getThresholdLabel(threshold: number, ownerCount: number): string {
   const noun = ownerCount > 1 ? 'signers' : 'signer'
   return `${threshold} out of ${ownerCount} ${noun}`
+}
+
+/**
+ * Resolves the pay method that is actually used for creation.
+ * With counterfactual enabled, multichain creations are always counterfactual
+ * (PayLater) — paying upfront on every network at once isn't offered. For
+ * single-chain (or when counterfactual is disabled), PayLater requires an
+ * authenticated session, otherwise it falls back to PayNow.
+ */
+export function getEffectivePayMethod(
+  isMultiChainDeployment: boolean,
+  isUserAuthenticated: boolean,
+  payMethod: PayMethod,
+  isCounterfactualEnabled?: boolean,
+): PayMethod {
+  if (isMultiChainDeployment && isCounterfactualEnabled) {
+    return PayMethod.PayLater
+  }
+  return !isUserAuthenticated && payMethod === PayMethod.PayLater ? PayMethod.PayNow : payMethod
 }
 
 /**
@@ -80,4 +100,10 @@ export function buildTransactionOptions(
  */
 export function getWillRelay(canRelay: boolean, executionMethod: ExecutionMethod): boolean {
   return canRelay && executionMethod === ExecutionMethod.RELAY
+}
+
+export function getNewSafeHomeUrl(shortName: string, safeAddress: string, spaceId: string | null): string {
+  const query = new URLSearchParams({ safe: `${shortName}:${safeAddress}` })
+  if (spaceId) query.set('spaceId', spaceId)
+  return `${AppRoutes.home}?${query}`
 }

@@ -10,17 +10,20 @@ import * as dashboard from '../pages/dashboard.pages.js'
 import * as navigation from '../pages/navigation.page.js'
 import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import * as wallet from '../../support/utils/wallet.js'
-import safes from '../../fixtures/safes/static.js'
+import sidebar from '../../fixtures/sidebar.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
 
 const newSafeName = 'Added safe 3'
 const addedSafe900 = 'Added safe 900'
 
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
-const signer1 = walletCredentials.OWNER_1_PRIVATE_KEY
-const signer2 = walletCredentials.OWNER_3_PRIVATE_KEY
+let signer, signer1, signer2
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+  signer1 = walletCredentials.OWNER_1_PRIVATE_KEY
+  signer2 = walletCredentials.OWNER_3_PRIVATE_KEY
+})
 
 describe('Safe selector tests - connect wallet prompt', () => {
   before(async () => {
@@ -42,7 +45,7 @@ describe('Safe selector tests - details and currency', () => {
   it('Verify current safe details are shown in the safe selector trigger', () => {
     cy.visit(constants.homeUrl + staticSafes.SEP_STATIC_SAFE_9)
     safeNav.verifySafeIconVisible()
-    safeNav.verifySafeSelectorTriggerName(safes.SEP_STATIC_SAFE_9_SHORT)
+    safeNav.verifySafeSelectorTriggerName(sidebar.safe9Short)
     safeNav.verifySafeSelectorThreshold(2, 2)
   })
 
@@ -50,19 +53,6 @@ describe('Safe selector tests - details and currency', () => {
     cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
     assets.changeCurrency(assets.currencyCAD)
     safeNav.verifyCurrencySection(assets.currency$)
-  })
-})
-
-describe('Safe selector tests - welcome page redirect', () => {
-  it('Verify connected user is redirected from welcome page to accounts page', () => {
-    cy.visit(constants.welcomeUrl + '?chain=sep')
-    cy.get(create_wallet.welcomeLoginScreen).should('be.visible')
-    cy.get(create_wallet.connectWalletBtn).should('be.visible').click()
-    wallet.connectSigner(signer)
-    cy.location().should((loc) => {
-      expect(loc.pathname).to.eq('/welcome/accounts')
-    })
-    cy.get(create_wallet.accountInfoHeader).should('be.visible')
   })
 })
 
@@ -94,37 +84,33 @@ describe('Safe selector tests - pin/unpin and undeployed safes', () => {
     staticSafes = await getSafes(CATEGORIES.static)
   })
 
-  it('Verify "Add safe" button is displayed in the accounts modal', () => {
-    main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.sidebarTrustedSafe1)
-    cy.visit(constants.homeUrl + staticSafes.SEP_STATIC_SAFE_9)
-    wallet.connectSigner(signer)
-    accountsModal.openAccountsModal()
-    accountsModal.verifyAddSafeButtonVisible()
+  it('Verify "Add accounts" button is displayed on the accounts page', () => {
+    wallet.connectSignerViaStorage(signer, constants.welcomeAccountsSepoliaUrl, { waitForConnection: false })
+    accountsModal.verifyAddAccountsButtonVisible()
   })
 
   it('Verify a safe can be removed from the trusted list', () => {
-    main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.sidebarTrustedSafe1)
-    cy.visit(constants.homeUrl + staticSafes.SEP_STATIC_SAFE_9)
-    wallet.connectSigner(signer)
+    main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.sidebarTrustedSafe1Safe2)
+    wallet.connectSignerViaStorage(signer, constants.homeUrl + staticSafes.SEP_STATIC_SAFE_9)
     accountsModal.openAccountsModal()
     accountsModal.verifyPinnedAccountsSectionVisible()
     accountsModal.unpinSafeByName(sideBar.sideBarSafes.safe1short)
+    accountsModal.openAccountsModal()
+    accountsModal.verifyPinnedSafeExists(sideBar.sideBarSafes.safe2short)
     accountsModal.verifyPinnedSafeDoesNotExist(sideBar.sideBarSafes.safe1short)
   })
 
   it('Verify undeployed safe appears in the trusted list', () => {
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.set6_undeployed_safe)
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__undeployedSafes, ls.undeployedSafe.safe1)
-    cy.visit(constants.homeUrl + staticSafes.SEP_STATIC_SAFE_9)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.homeUrl + staticSafes.SEP_STATIC_SAFE_9)
     accountsModal.openAccountsModal()
     accountsModal.verifyPinnedAccountsSectionVisible()
     accountsModal.verifyPinnedSafeExists(sideBar.sideBarSafes.safe4short)
   })
 
   it('Verify untrusted safe can be added to trusted list from dashboard action required panel', () => {
-    cy.visit(constants.homeUrl + staticSafes.SEP_STATIC_SAFE_9, { skipAutoTrust: true })
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.homeUrl + staticSafes.SEP_STATIC_SAFE_9, { skipAutoTrust: true })
     dashboard.verifyActionRequiredCard({ messages: [dashboard.nonPinnedWarningTitle] })
     dashboard.clickActionInPanel(dashboard.trustThisSafeButtonTestId)
     dashboard.verifyTrustDialogVisible()
@@ -187,31 +173,27 @@ describe('Safe selector tests - accounts modal actions', () => {
   })
 
   it('Verify Import button is present on the accounts page', () => {
-    cy.visit(constants.welcomeAccountsSepoliaUrl)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.welcomeAccountsSepoliaUrl, { waitForConnection: false })
     accountsModal.verifyImportBtnVisible()
   })
 
   it('Verify safes added to watchlist appear in the accounts modal', () => {
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.set4)
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
-    wallet.connectSigner(signer1)
+    wallet.connectSignerViaStorage(signer1, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
     accountsModal.openAccountsModal()
     accountsModal.verifyAccountsListContains(sideBar.sideBarSafes.safe3short)
   })
 
   it('Verify missing signature info is shown for a safe in the accounts modal', () => {
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.sidebarTrustedPendingSafe1)
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_7)
-    wallet.connectSigner(signer2)
+    wallet.connectSignerViaStorage(signer2, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_7)
     accountsModal.openAccountsModal()
     accountsModal.verifyMissingSignatureInfoExists()
   })
 
   it('Verify balance is displayed in the accounts modal safe item', () => {
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.sidebarTrustedPendingSafe1)
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_7)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_7)
     accountsModal.openAccountsModal()
     accountsModal.verifyFiatBalanceExists()
   })
@@ -247,8 +229,7 @@ describe('Safe selector tests - watchlist in dropdown', () => {
 
   it('Verify that safes the user does not own appear in the safe selector dropdown after adding them', () => {
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.set4)
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
-    wallet.connectSigner(signer2)
+    wallet.connectSignerViaStorage(signer2, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
 
     safeNav.openSelector()
 
@@ -257,8 +238,7 @@ describe('Safe selector tests - watchlist in dropdown', () => {
 
   it('Verify that safes the user owns appear in the safe selector dropdown after adding them', () => {
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.set4)
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
-    wallet.connectSigner(signer1)
+    wallet.connectSignerViaStorage(signer1, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
 
     safeNav.openSelector()
 
@@ -267,8 +247,7 @@ describe('Safe selector tests - watchlist in dropdown', () => {
 
   it('Verify that a watched safe with a pending tx appears in the safe selector dropdown', () => {
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.sidebarTrustedPendingSafe1)
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
-    wallet.connectSigner(signer2)
+    wallet.connectSignerViaStorage(signer2, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
 
     safeNav.openSelector()
 
@@ -285,32 +264,13 @@ describe('Safe selector tests - watchlist in dropdown', () => {
   })
 })
 
-describe('Safe selector tests - pin toggle in accounts modal', () => {
-  before(async () => {
-    staticSafes = await getSafes(CATEGORIES.static)
-  })
-
-  it('Verify that pinning a safe in the accounts modal moves it into the trusted safes section', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9, { skipAutoTrust: true })
-    wallet.connectSigner(signer)
-    accountsModal.openAccountsModal()
-
-    accountsModal.verifyPinnedSafeDoesNotExist(safes.SEP_STATIC_SAFE_9_SHORT)
-    accountsModal.pinSafeByName(safes.SEP_STATIC_SAFE_9_SHORT)
-
-    accountsModal.verifyPinnedAccountsSectionVisible()
-    accountsModal.verifyPinnedSafeExists(safes.SEP_STATIC_SAFE_9_SHORT)
-  })
-})
-
 describe('Safe selector tests - new transaction button states', () => {
   before(async () => {
     staticSafes = await getSafes(CATEGORIES.static)
   })
 
   it('Verify the new transaction button is enabled for proposers', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_31)
-    wallet.connectSigner(signer1)
+    wallet.connectSignerViaStorage(signer1, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_31)
 
     navigation.verifyTxBtnStatus(constants.enabledStates.enabled)
   })
@@ -322,15 +282,13 @@ describe('Safe selector tests - new transaction button states', () => {
   })
 
   it('Verify the new transaction button is disabled for connected non-owners', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_7)
-    wallet.connectSigner(signer1)
+    wallet.connectSignerViaStorage(signer1, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_7)
 
     navigation.verifyTxBtnStatus(constants.enabledStates.disabled)
   })
 
   it('Verify the new transaction button is enabled for non-owners with spending limits', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_11)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_11)
 
     navigation.verifyTxBtnStatus(constants.enabledStates.enabled)
   })
@@ -341,12 +299,10 @@ describe('Safe selector tests - add safe button', () => {
     staticSafes = await getSafes(CATEGORIES.static)
   })
 
-  it('Verify the add safe button in the accounts modal navigates to the load safe flow', () => {
-    main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.sidebarTrustedSafe1)
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_9)
-    accountsModal.openAccountsModal()
+  it('Verify selecting an existing safe from Add accounts opens the load flow', () => {
+    wallet.connectSignerViaStorage(signer, constants.welcomeAccountsSepoliaUrl, { waitForConnection: false })
 
-    accountsModal.clickAddSafeButtonAndVerifyLoadFlow()
+    accountsModal.clickAddAccountsSelectExistingAndVerifyLoadFlow()
   })
 })
 
@@ -358,8 +314,7 @@ describe('Safe selector tests - threshold tag visible for owners and non-owners'
   it('Verify the threshold badge is shown on safe cards for both owner and non-owner safes', () => {
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.set3)
     main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addressBook, ls.addressBookData.addedSafes)
-    cy.visit(constants.homeUrl + staticSafes.SEP_STATIC_SAFE_11)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.homeUrl + staticSafes.SEP_STATIC_SAFE_11)
     accountsModal.openAccountsModal()
 
     accountsModal.verifyThresholdBadgeOnSafeCard('Added owner')

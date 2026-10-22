@@ -6,10 +6,11 @@ import type {
 import { useMemo } from 'react'
 import { useRouter } from 'next/router'
 import type { ParsedUrlQuery } from 'querystring'
-import { startOfDay, endOfDay } from 'date-fns'
+import { startOfDay, endOfDay, isValid } from 'date-fns'
 
 import type { TxFilterFormState } from '@/components/transactions/TxFilterForm'
 import { getModuleTransactions, getIncomingTransfers, getMultisigTransactions } from '@/utils/transactions'
+import { useSafeLinkQuery } from '@/hooks/useSafeLinkQuery'
 
 // Filter types using snake_case for backward compatibility with forms
 // These correspond to the query parameters (excluding chainId/safeAddress) from the RTK Query API
@@ -48,7 +49,7 @@ export type TxFilter = {
   filter: IncomingTxFilter | MultisigTxFilter | ModuleTxFilter // CGW filter
 }
 
-export const _omitNullish = (data: { [key: string]: any }) => {
+export const _omitNullish = (data: { [key: string]: unknown }) => {
   return Object.fromEntries(
     Object.entries(data).filter(([, value]) => {
       return value !== '' && value != null
@@ -62,6 +63,13 @@ export const _isValidTxFilterType = (type: unknown) => {
 
 export const _isModuleFilter = (filter: TxFilter['filter']): filter is ModuleTxFilter => {
   return 'module' in filter
+}
+
+// The query string is user-editable, so drop a nonsense date rather than seeding the form with it
+const parseFilterDate = (value: string | undefined): Date | null => {
+  if (!value) return null
+  const date = new Date(value)
+  return isValid(date) ? date : null
 }
 
 // Spread TxFilter basically
@@ -110,8 +118,8 @@ export const txFilter = {
     return {
       type,
       ...filter,
-      execution_date__gte: !isModule && filter.execution_date__gte ? new Date(filter.execution_date__gte) : null,
-      execution_date__lte: !isModule && filter.execution_date__lte ? new Date(filter.execution_date__lte) : null,
+      execution_date__gte: isModule ? null : parseFilterDate(filter.execution_date__gte),
+      execution_date__lte: isModule ? null : parseFilterDate(filter.execution_date__lte),
       value: isModule ? '' : filter.value,
     }
   },
@@ -119,13 +127,14 @@ export const txFilter = {
 
 export const useTxFilter = (): [TxFilter | null, (filter: TxFilter | null) => void] => {
   const router = useRouter()
+  const safeLinkQuery = useSafeLinkQuery()
   const filter = useMemo(() => txFilter.parseUrlQuery(router.query), [router.query])
 
   const setQuery = (filter: TxFilter | null) => {
     router.push({
       pathname: router.pathname,
       query: {
-        safe: router.query.safe,
+        ...safeLinkQuery,
         ...(filter && txFilter.formatUrlQuery(filter)),
       },
     })

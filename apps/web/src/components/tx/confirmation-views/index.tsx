@@ -28,7 +28,7 @@ import { type ReactElement } from 'react'
 import SwapOrder from './SwapOrder'
 import StakingTx from './StakingTx'
 import UpdateSafe from './UpdateSafe'
-import { MigrateToL2Information } from './MigrateToL2Information'
+import { MigrateToL2Information } from '@safe-global/views/components/tx/confirmation-views/MigrateToL2Information'
 import { NestedSafeCreation } from './NestedSafeCreation'
 import { isNestedSafeCreation } from '@/utils/nested-safes'
 import { VaultDepositConfirmation, VaultRedeemConfirmation } from '@/features/earn'
@@ -37,7 +37,6 @@ import TxData from '@/components/transactions/TxDetails/TxData'
 import { isMultiSendCalldata } from '@/utils/transaction-calldata'
 import useChainId from '@/hooks/useChainId'
 import { ManageSigners } from './ManageSigners'
-import { Box } from '@mui/material'
 import DecodedData from '@/components/transactions/TxDetails/TxData/DecodedData'
 import BridgeTransaction from './BridgeTransaction'
 import { LifiSwapTransaction } from './LifiSwapTransaction'
@@ -133,12 +132,12 @@ const ConfirmationView = ({
         (ConfirmationViewComponent ||
           (details && showTxDetails && (
             <TxData txData={details?.txData} txInfo={details?.txInfo} txDetails={txDetails} imitation={false} trusted>
-              <Box ref={decodedDataRef}>
+              <div ref={decodedDataRef}>
                 <DecodedData
                   txData={details.txData}
                   toInfo={isCustomTxInfo(details.txInfo) ? details.txInfo.to : details.txData?.to}
                 />
-              </Box>
+              </div>
             </TxData>
           )))}
 

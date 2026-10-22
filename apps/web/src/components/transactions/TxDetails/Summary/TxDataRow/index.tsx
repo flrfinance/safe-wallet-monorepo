@@ -1,8 +1,8 @@
 import type { AddressInfo } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
 import type { ReactElement } from 'react'
 import { HexEncodedData } from '@/components/transactions/HexEncodedData'
-import { Typography } from '@mui/material'
-import { DataRow } from '@/components/common/Table/DataRow'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { DataRow } from '@safe-global/views/components/common/Table/DataRow'
 import NamedAddressInfo from '@/components/common/NamedAddressInfo'
 
 export const TxDataRow = DataRow
@@ -21,7 +21,7 @@ export const generateDataRowValue = (
       const customAvatar = addressInfo?.logoUri
 
       return (
-        <Typography variant="body2" component="span">
+        <Typography variant="paragraph-small">
           <NamedAddressInfo
             address={value}
             name={addressInfo?.name}
@@ -38,13 +38,13 @@ export const generateDataRowValue = (
     case 'rawData':
     case 'bytes':
       return (
-        <Typography variant="body2" component="span">
+        <Typography variant="paragraph-small">
           <HexEncodedData highlightFirstBytes={false} limit={66} hexData={value} />
         </Typography>
       )
     default:
       return (
-        <Typography variant="body2" sx={{ wordBreak: 'break-all' }} component="span">
+        <Typography variant="paragraph-small" className="break-all">
           {value}
         </Typography>
       )

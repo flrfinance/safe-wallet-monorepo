@@ -38,10 +38,7 @@ const SKIPPED_GROUPS: Record<string, string> = {
 
 /** Coverage info for a component */
 type ComponentCoverage =
-  | { type: 'own' }
-  | { type: 'family'; familyName: string }
-  | { type: 'group'; groupName: string }
-  | { type: 'none' }
+  { type: 'own' } | { type: 'family'; familyName: string } | { type: 'group'; groupName: string } | { type: 'none' }
 
 // ============================================================================
 // Helper Functions
@@ -498,7 +495,7 @@ yarn workspace @safe-global/web storybook:generate-coverage
 ### Coverage Strategy
 
 1. **Top-level first**: Create \`index.stories.tsx\` in each major directory
-2. **Story exports**: Each export = one Chromatic snapshot
+2. **Story exports**: Each export = one visual-regression snapshot (Argos)
 3. **Family-based**: Group related components in one story file
 
 ### Priority Scores

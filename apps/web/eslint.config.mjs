@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import js from '@eslint/js'
 import { FlatCompat } from '@eslint/eslintrc'
+import { designSystemSyntaxRules } from '../../packages/views/eslint-design-system.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -14,6 +15,21 @@ const compat = new FlatCompat({
   recommendedConfig: js.configs.recommended,
   allConfig: js.configs.all,
 })
+
+// A Safe link without `spaceId` opens the Safe outside the Workspace of the current page. Matches a
+// `query` property or variable that holds such an object, directly or in a conditional.
+const safeQueryWithoutSpaceId =
+  "ObjectExpression:has(> Property[key.name='safe']):not(:has(> Property[key.name='spaceId'])):not(:has(> SpreadElement))"
+const safeLinkWithoutSpaceIdRules = [
+  `Property[key.name='query'] > ${safeQueryWithoutSpaceId}`,
+  `Property[key.name='query'] > ConditionalExpression > ${safeQueryWithoutSpaceId}`,
+  `VariableDeclarator[id.name='query'] > ${safeQueryWithoutSpaceId}`,
+  `VariableDeclarator[id.name='query'] > ConditionalExpression > ${safeQueryWithoutSpaceId}`,
+].map((selector) => ({
+  selector,
+  message:
+    'A Safe link must keep `spaceId`: use `useSafeLinkQuery()`, or wrap the query in `withSpaceId(query, spaceId)`. If the link must leave the Workspace, add `// eslint-disable-next-line no-restricted-syntax -- <reason>`.',
+}))
 
 export default [
   {
@@ -61,6 +77,7 @@ export default [
         'error',
         {
           varsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
         },
       ],
 
@@ -98,7 +115,7 @@ export default [
       //
       // See apps/web/docs/feature-architecture.md for details
       'no-restricted-imports': [
-        'warn',
+        'error',
         {
           patterns: [
             // Block deep imports into feature components (defeats lazy loading)
@@ -142,6 +159,21 @@ export default [
           ],
         },
       ],
+
+      // Design-system consistency: on <Button>, `className` is for LAYOUT only
+      // (w-full, margins, grid placement). Height/padding/font-size/radius/background
+      // are owned by the `size`/`variant` props — overriding them via className is what
+      // makes buttons drift out of sync. If no size/variant fits a recurring need, add one
+      // to components/ui/button.tsx. See the UI/Button story + apps/web/AGENTS.md
+      // ("Component variants over custom styling").
+      'no-restricted-syntax': ['error', ...designSystemSyntaxRules, ...safeLinkWithoutSpaceIdRules],
+    },
+  },
+  // Tests build router mocks with a bare `safe` query, so only the design-system guards apply there.
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/__tests__/**', '**/*.stories.tsx', 'src/tests/**', 'src/stories/**'],
+    rules: {
+      'no-restricted-syntax': ['error', ...designSystemSyntaxRules],
     },
   },
   // Override for story files: allow type-only imports from @storybook/react

@@ -1,5 +1,6 @@
 import type { TransactionData } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
-import { Card, CardContent, CardHeader, cardHeaderClasses, Stack, SvgIcon, Typography } from '@mui/material'
+import { Card, CardContent } from '@safe-global/views/components/ui/card'
+import { Typography } from '@safe-global/views/components/ui/typography'
 
 import { Divider } from '@/components/tx/ColorCodedTxAccordion'
 
@@ -7,13 +8,14 @@ import NestedTransactionIcon from '@/public/images/transactions/nestedTx.svg'
 import { type ReactElement } from 'react'
 import MethodCall from '../DecodedData/MethodCall'
 import { MethodDetails } from '../DecodedData/MethodDetails'
-import ExternalLink from '@/components/common/ExternalLink'
+import ExternalLink from '@safe-global/views/components/common/ExternalLink'
 import Track from '@/components/common/Track'
 import Link from 'next/link'
 import { MODALS_EVENTS } from '@/services/analytics'
 import { AppRoutes } from '@/config/routes'
 import { useSignedHash } from './useSignedHash'
 import { useCurrentChain } from '@/hooks/useChains'
+import { useUrlSpaceId, withSpaceId } from '@/hooks/useUrlSpaceId'
 
 export const NestedTransaction = ({
   txData,
@@ -25,9 +27,10 @@ export const NestedTransaction = ({
   isConfirmationView?: boolean
 }) => {
   const chain = useCurrentChain()
+  const spaceId = useUrlSpaceId()
   const signedHash = useSignedHash(txData)
   return (
-    <Stack spacing={2}>
+    <div className="flex flex-col gap-4">
       {!isConfirmationView && txData?.dataDecoded && (
         <>
           <MethodCall contractAddress={txData.to.value} method={txData.dataDecoded.method} />
@@ -36,49 +39,33 @@ export const NestedTransaction = ({
         </>
       )}
 
-      <Card variant="outlined" sx={{ backgroundColor: 'background.main' }}>
-        <CardHeader
-          sx={{
-            borderBottom: '1px solid',
-            borderColor: 'border.light',
-            [`& .${cardHeaderClasses.action}`]: {
-              marginTop: 0,
-              marginBottom: 0,
-              marginRight: 0,
-            },
-          }}
-          avatar={<SvgIcon component={NestedTransactionIcon} inheritViewBox fontSize="small" />}
-          action={
-            chain &&
-            txData &&
-            signedHash && (
-              <Track {...MODALS_EVENTS.OPEN_NESTED_TX}>
-                <Link
-                  href={{
-                    pathname: AppRoutes.transactions.tx,
-                    query: {
-                      safe: `${chain?.shortName}:${txData.to.value}`,
-                      id: signedHash,
-                    },
-                  }}
-                  passHref
-                  legacyBehavior
-                >
-                  <ExternalLink color="text.secondary">
-                    <Typography variant="body2" fontWeight={700}>
-                      Open
-                    </Typography>
-                  </ExternalLink>
-                </Link>
-              </Track>
-            )
-          }
-          title={<Typography variant="h5">Nested transaction</Typography>}
-        />
+      <Card variant="outlined" surface="sunken" size="none" radius="lg">
+        <div className="border-border-light flex items-center gap-4 border-b p-4">
+          <NestedTransactionIcon className="size-4" />
+          <Typography variant="h4" className="grow">
+            Nested transaction
+          </Typography>
+          {chain && txData && signedHash && (
+            <Track {...MODALS_EVENTS.OPEN_NESTED_TX}>
+              <Link
+                href={{
+                  pathname: AppRoutes.transactions.tx,
+                  query: withSpaceId({ safe: `${chain?.shortName}:${txData.to.value}`, id: signedHash }, spaceId),
+                }}
+                passHref
+                legacyBehavior
+              >
+                <ExternalLink className="text-muted-foreground">
+                  <Typography variant="paragraph-small-bold">Open</Typography>
+                </ExternalLink>
+              </Link>
+            </Track>
+          )}
+        </div>
         <CardContent>
-          <Stack spacing={4}>{children}</Stack>
+          <div className="flex flex-col gap-8 p-4">{children}</div>
         </CardContent>
       </Card>
-    </Stack>
+    </div>
   )
 }

@@ -86,6 +86,8 @@ const txDetails = createMockTransactionDetails({
     baseGas: '0',
     gasPrice: '0',
     gasToken: '0x0000000000000000000000000000000000000000',
+    fee: '0',
+    payment: '0',
     refundReceiver: {
       value: '0x0000000000000000000000000000000000000000',
       name: 'MetaMultiSigWallet',
@@ -211,14 +213,11 @@ describe('DecodedTx', () => {
       />,
     )
 
-    await waitFor(() => {
-      expect(result.queryByText('Interacted with')).toBeInTheDocument()
-      expect(result.queryAllByText('Data').pop()).toBeInTheDocument()
-    })
-
+    // Details live inside a collapsed accordion (unmounted) until expanded
     fireEvent.click(result.getByText('Transaction details'))
 
     await waitFor(() => {
+      expect(result.queryByText('Interacted with')).toBeInTheDocument()
       expect(result.queryByText('SafeTxGas')).toBeInTheDocument()
       expect(result.queryAllByText('Data').pop()).toBeInTheDocument()
     })

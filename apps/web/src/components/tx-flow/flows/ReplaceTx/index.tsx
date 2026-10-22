@@ -1,10 +1,11 @@
-import { useContext, useState } from 'react'
+import { type ReactNode, useContext, useState } from 'react'
 import { type NextRouter, useRouter } from 'next/router'
-import { Box, Tooltip, Typography } from '@mui/material'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@safe-global/views/components/ui/tooltip'
+import { Typography } from '@safe-global/views/components/ui/typography'
 import DeleteIcon from '@/public/images/common/delete.svg'
 import CancelIcon from '@/public/images/common/cancel.svg'
 import ReplaceTxIcon from '@/public/images/transactions/replace-tx.svg'
-import CachedIcon from '@mui/icons-material/Cached'
+import { RefreshCw as CachedIcon } from 'lucide-react'
 import { useQueuedTxByNonce } from '@/hooks/useTxQueue'
 import { isCustomTxInfo } from '@/utils/transaction-guards'
 
@@ -13,10 +14,10 @@ import { TxModalContext } from '../..'
 import TokenTransferFlow from '../TokenTransfer'
 import RejectTx from '../RejectTx'
 import TxLayout from '@/components/tx-flow/common/TxLayout'
-import TxCard from '@/components/tx-flow/common/TxCard'
+import TxCard from '@safe-global/views/components/tx-flow/common/TxCard'
 import DeleteTxModal from './DeleteTxModal'
-import ExternalLink from '@/components/common/ExternalLink'
-import ChoiceButton from '@/components/common/ChoiceButton'
+import ExternalLink from '@safe-global/views/components/common/ExternalLink'
+import ChoiceButton from '@safe-global/views/components/common/ChoiceButton'
 import useWallet from '@/hooks/wallets/useWallet'
 import { sameAddress } from '@safe-global/utils/utils/addresses'
 import { AppRoutes } from '@/config/routes'
@@ -25,12 +26,26 @@ import Track from '@/components/common/Track'
 import { REJECT_TX_EVENTS } from '@/services/analytics/events/reject-tx'
 import { useRecommendedNonce } from '@/components/tx/shared/hooks'
 import { FEATURES } from '@safe-global/utils/utils/chains'
+import { withSpaceId } from '@/hooks/useUrlSpaceId'
+
+const MaybeTooltip = ({ title, children }: { title: string; children: ReactNode }) => {
+  if (!title) {
+    return <span className="w-full">{children}</span>
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="w-full" />}>{children}</TooltipTrigger>
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 const goToQueue = (router: NextRouter) => {
   if (router.pathname === AppRoutes.transactions.tx) {
     router.push({
       pathname: AppRoutes.transactions.queue,
-      query: { safe: router.query.safe },
+      query: withSpaceId({ safe: router.query.safe }, router.query.spaceId),
     })
   }
 }
@@ -68,32 +83,28 @@ const DeleteTxButton = ({
 
   return (
     <>
-      <Typography variant="overline" className={css.or}>
+      <Typography variant="paragraph-mini" className={css.or}>
         or
       </Typography>
 
-      <Typography variant="body2" mb={0.5}>
+      <Typography variant="paragraph-small" className="mb-1 block">
         Don’t want to have this transaction anymore? Remove it permanently from the queue.
       </Typography>
 
-      <Tooltip
-        arrow
-        placement="top"
+      <MaybeTooltip
         title={isDeletable ? '' : 'You can only delete the last transaction in the queue, or a duplicate transaction.'}
       >
-        <span style={{ width: '100%' }}>
-          <Track {...REJECT_TX_EVENTS.DELETE_OFFCHAIN_BUTTON} as="div">
-            <ChoiceButton
-              icon={DeleteIcon}
-              iconColor="error"
-              onClick={() => setIsDeleting(true)}
-              title="Delete from the queue"
-              description="Remove this transaction from the off-chain queue"
-              disabled={!isDeletable}
-            />
-          </Track>
-        </span>
-      </Tooltip>
+        <Track {...REJECT_TX_EVENTS.DELETE_OFFCHAIN_BUTTON} as="div">
+          <ChoiceButton
+            icon={DeleteIcon}
+            iconColor="error"
+            onClick={() => setIsDeleting(true)}
+            title="Delete from the queue"
+            description="Remove this transaction from the off-chain queue"
+            disabled={!isDeletable}
+          />
+        </Track>
+      </MaybeTooltip>
 
       {safeTxHash && isDeleting && (
         <DeleteTxModal onSuccess={onDeleteSuccess} onClose={onDeleteClose} safeTxHash={safeTxHash} />
@@ -124,11 +135,11 @@ const ReplaceTxMenu = ({
   return (
     <TxLayout title={`Reject transaction #${txNonce}`} step={0} hideNonce isReplacement>
       <TxCard>
-        <Box mt={2} textAlign="center">
+        <div className="mt-4 flex justify-center">
           <ReplaceTxIcon />
-        </Box>
+        </div>
 
-        <Typography variant="body2" mt={-1} mb={1}>
+        <Typography variant="paragraph-small" className="-mt-2 mb-2 block">
           You can replace or reject this transaction on-chain. It requires gas fees and your signature.{' '}
           <Track {...REJECT_TX_EVENTS.READ_MORE}>
             <ExternalLink href="https://help.safe.global/articles/4016097317-Why-do-I-need-to-pay-for-cancelling-a-transaction?">
@@ -137,7 +148,7 @@ const ReplaceTxMenu = ({
           </Track>
         </Typography>
 
-        <Box display="flex" flexDirection="column" gap={2}>
+        <div className="flex flex-col gap-4">
           <Track {...REJECT_TX_EVENTS.REPLACE_TX_BUTTON} as="div">
             <ChoiceButton
               icon={CachedIcon}
@@ -148,25 +159,19 @@ const ReplaceTxMenu = ({
             />
           </Track>
 
-          <Tooltip
-            arrow
-            placement="top"
-            title={canCancel ? '' : `Transaction with nonce ${txNonce} already has a reject transaction`}
-          >
-            <span style={{ width: '100%' }}>
-              <Track {...REJECT_TX_EVENTS.REJECT_ONCHAIN_BUTTON} as="div">
-                <ChoiceButton
-                  icon={CancelIcon}
-                  iconColor="warning"
-                  onClick={() => setTxFlow(<RejectTx txNonce={txNonce} />)}
-                  disabled={!canCancel}
-                  title="Reject transaction"
-                  description="Propose an on-chain cancellation transaction with the same nonce"
-                  chip={canDelete ? 'Recommended' : undefined}
-                />
-              </Track>
-            </span>
-          </Tooltip>
+          <MaybeTooltip title={canCancel ? '' : `Transaction with nonce ${txNonce} already has a reject transaction`}>
+            <Track {...REJECT_TX_EVENTS.REJECT_ONCHAIN_BUTTON} as="div">
+              <ChoiceButton
+                icon={CancelIcon}
+                iconColor="warning"
+                onClick={() => setTxFlow(<RejectTx txNonce={txNonce} />)}
+                disabled={!canCancel}
+                title="Reject transaction"
+                description="Propose an on-chain cancellation transaction with the same nonce"
+                chip={canDelete ? 'Recommended' : undefined}
+              />
+            </Track>
+          </MaybeTooltip>
 
           {canDelete && (
             <DeleteTxButton
@@ -176,7 +181,7 @@ const ReplaceTxMenu = ({
               onSuccess={() => setTxFlow(undefined)}
             />
           )}
-        </Box>
+        </div>
       </TxCard>
     </TxLayout>
   )

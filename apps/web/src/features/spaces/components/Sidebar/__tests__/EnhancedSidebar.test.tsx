@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { EnhancedSidebar } from '../index'
-import type { SpaceItem } from '../types'
+import type { SpaceItem } from '@safe-global/views/features/spaces/components/Sidebar/types'
 
 // Mock the sidebar components
-jest.mock('@/components/ui/sidebar', () => ({
+jest.mock('@safe-global/views/components/ui/sidebar', () => ({
   Sidebar: ({ children, className }: { children: ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
   ),
@@ -17,10 +17,6 @@ jest.mock('../SidebarTopBar', () => ({
 
 jest.mock('../SidebarCommonFooter', () => ({
   SidebarCommonFooter: () => <div>Footer</div>,
-}))
-
-jest.mock('../SidebarProfileSection', () => ({
-  SidebarProfileSection: () => <div>Profile</div>,
 }))
 
 jest.mock('../variants', () => ({
@@ -38,18 +34,17 @@ jest.mock('../variants', () => ({
 
 describe('EnhancedSidebar', () => {
   const mockSpaces: SpaceItem[] = [
-    { id: 1, name: 'Space 1', safeCount: 0 },
-    { id: 2, name: 'Space 2', safeCount: 0 },
+    { uuid: 'uuid-1', name: 'Space 1', safeCount: 0 },
+    { uuid: 'uuid-2', name: 'Space 2', safeCount: 0 },
   ]
 
-  const mockSelectedSpace: SpaceItem = { id: 1, name: 'Space 1', safeCount: 0 }
+  const mockSelectedSpace: SpaceItem = { uuid: 'uuid-1', name: 'Space 1', safeCount: 0 }
 
   it('renders all required components', () => {
     render(<EnhancedSidebar type="spaces" spaceInitial="T" selectedSpace={mockSelectedSpace} spaces={mockSpaces} />)
 
     expect(screen.getByText('Top Bar')).toBeInTheDocument()
     expect(screen.getByText('Footer')).toBeInTheDocument()
-    expect(screen.getByText('Profile')).toBeInTheDocument()
   })
 
   it('renders spaces variant when type is spaces', () => {

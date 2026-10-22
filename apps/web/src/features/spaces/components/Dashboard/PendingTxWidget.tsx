@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { Users } from 'lucide-react'
-import SafeWidget from '@/features/spaces/components/SafeWidget'
-import { Badge } from '@/components/ui/badge'
+import SafeWidget from '../SafeWidget'
+import { Badge } from '@safe-global/views/components/ui/badge'
 import { getTxStatus } from '@/features/transactions/utils'
 import { formatTimeInWords } from '@safe-global/utils/utils/date'
 import { TxTypeIcon, TxTypeText } from '@/components/transactions/TxType'
@@ -10,8 +10,9 @@ import type { TransactionQueuedItem } from '@safe-global/store/gateway/AUTO_GENE
 import Identicon from '@/components/common/Identicon'
 import { AppRoutes } from '@/config/routes'
 import { getEip3770ShortName } from '@safe-global/utils/utils/chains'
-import { cn } from '@/utils/cn'
+import { cn } from '@safe-global/views/utils/cn'
 import css from './styles.module.css'
+import { withSpaceIdInUrl, useUrlSpaceId } from '@/hooks/useUrlSpaceId'
 
 /** Transaction with safeAddress and chainId from the space pending-transactions API */
 type SpacePendingTxItem = TransactionQueuedItem & { safeAddress?: string; chainId?: string }
@@ -19,9 +20,7 @@ type SpacePendingTxItem = TransactionQueuedItem & { safeAddress?: string; chainI
 interface PendingTxWidgetProps {
   transactions: SpacePendingTxItem[]
   loading?: boolean
-  remainingCount?: number
   error?: string
-  onViewAll?: () => void
   onRefresh?: () => void
   onItemClick?: (safeAddress: string, txId: string) => void
 }
@@ -43,6 +42,7 @@ const PendingTxWidget = ({
 }: PendingTxWidgetProps): ReactElement => {
   const isEmpty = transactions.length === 0 && !loading
   const hasError = !!error && !loading
+  const spaceId = useUrlSpaceId()
 
   if (hasError) {
     return (
@@ -70,7 +70,9 @@ const PendingTxWidget = ({
         transactions.map((tx) => {
           const shortName = getEip3770ShortName(tx.chainId ?? '')
           const safeParam = shortName && tx.safeAddress ? `${shortName}:${tx.safeAddress}` : undefined
-          const href = safeParam ? `${AppRoutes.transactions.tx}?id=${tx.transaction.id}&safe=${safeParam}` : undefined
+          const href = safeParam
+            ? withSpaceIdInUrl(`${AppRoutes.transactions.tx}?id=${tx.transaction.id}&safe=${safeParam}`, spaceId)
+            : undefined
 
           return (
             <SafeWidget.Item
@@ -78,6 +80,7 @@ const PendingTxWidget = ({
               href={href}
               onClick={tx.safeAddress ? () => onItemClick?.(tx.safeAddress!, tx.transaction.id) : undefined}
               className={css.widgetItem}
+              fixedActionWidth
               label={
                 <div className={css.widgetItemLabel}>
                   <TxTypeText tx={tx.transaction} /> <TxInfo info={tx.transaction.txInfo} />

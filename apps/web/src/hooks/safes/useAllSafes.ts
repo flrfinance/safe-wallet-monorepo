@@ -10,15 +10,9 @@ import type { UndeployedSafesState } from '@safe-global/utils/features/counterfa
 import { selectAllAddressBooks, selectAllVisitedSafes, selectUndeployedSafes } from '@/store/slices'
 import { sameAddress } from '@safe-global/utils/utils/addresses'
 import useAllOwnedSafes from './useAllOwnedSafes'
+import type { SafeItem } from '@safe-global/views/hooks/safes/types'
 
-export type SafeItem = {
-  chainId: string
-  address: string
-  isReadOnly: boolean
-  isPinned: boolean
-  lastVisited: number
-  name: string | undefined
-}
+export type { SafeItem } from '@safe-global/views/hooks/safes/types'
 
 export type SafeItems = SafeItem[]
 
@@ -70,9 +64,14 @@ export const _buildSafeItem = (
   }
 }
 
-const useAllSafes = (): SafeItems | undefined => {
+/**
+ * @param fetchOwnedSafes When false, skips the owned-safes enumeration and treats no safes as owned
+ *   (everything read-only). Defaults to true; lets consumers that only need it conditionally avoid
+ *   the request until it's relevant.
+ */
+const useAllSafes = (fetchOwnedSafes = true): SafeItems | undefined => {
   const { address: walletAddress = '' } = useWallet() || {}
-  const [allOwned = {}] = useAllOwnedSafes(walletAddress)
+  const [allOwned = {}] = useAllOwnedSafes(fetchOwnedSafes ? walletAddress : '')
   const { configs } = useChains()
   const allAdded = useAppSelector(selectAllAddedSafes)
   const allUndeployed = useAppSelector(selectUndeployedSafes)

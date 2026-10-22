@@ -1,26 +1,27 @@
-import { useRouter } from 'next/router'
-import Link from 'next/link'
-import { Button, Paper, Typography } from '@mui/material'
-import DefiIcon from '@/public/images/balances/defi.svg'
+import NextLink from 'next/link'
+import DefiIcon from '@safe-global/views/assets/images/balances/defi.svg'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Typography } from '@safe-global/views/components/ui/typography'
 import { AppRoutes } from '@/config/routes'
 import Track from '@/components/common/Track'
 import { POSITIONS_EVENTS } from '@/services/analytics/events/positions'
 import { MixpanelEventParams } from '@/services/analytics/mixpanel-events'
 import { useIsEarnPromoEnabled } from '@/features/earn'
+import { useSafeLinkQuery } from '@/hooks/useSafeLinkQuery'
 
 type PositionsEmptyProps = {
   entryPoint?: string
 }
 
 const PositionsEmpty = ({ entryPoint = 'Dashboard' }: PositionsEmptyProps) => {
-  const router = useRouter()
+  const safeLinkQuery = useSafeLinkQuery()
   const isEarnFeatureEnabled = useIsEarnPromoEnabled()
 
   return (
-    <Paper elevation={0} sx={{ p: 3, textAlign: 'center' }}>
-      <DefiIcon />
+    <div className="rounded-xl bg-card p-6 text-center">
+      <DefiIcon className="mx-auto" />
 
-      <Typography data-testid="no-tx-text" variant="body1" color="primary.light">
+      <Typography data-testid="no-tx-text" align="center" className="text-[var(--color-primary-light)]">
         You have no active DeFi positions yet
       </Typography>
 
@@ -31,14 +32,17 @@ const PositionsEmpty = ({ entryPoint = 'Dashboard' }: PositionsEmptyProps) => {
             [MixpanelEventParams.ENTRY_POINT]: entryPoint,
           }}
         >
-          <Link href={{ pathname: AppRoutes.earn, query: { safe: router.query.safe } }} passHref>
-            <Button size="small" sx={{ mt: 1 }}>
-              Explore Earn
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-2"
+            render={<NextLink href={{ pathname: AppRoutes.earn, query: safeLinkQuery }} />}
+          >
+            Explore Earn
+          </Button>
         </Track>
       )}
-    </Paper>
+    </div>
   )
 }
 

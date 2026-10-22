@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@safe-global/views/components/ui/dialog'
 import { withMockProvider } from '@/storybook/preview'
 import { AddToSpacePopupModal } from './AddToSpacePopupModal'
 
@@ -23,7 +23,8 @@ export const Default: Story = {
   decorators: [
     (Story) => (
       <Dialog open>
-        <DialogContent className="w-[423px] max-w-none p-0">
+        {/* eslint-disable-next-line no-restricted-syntax -- story-only: fixed 423px preview width (not a size token) */}
+        <DialogContent padding="none" className="w-[423px] max-w-none">
           <Story />
         </DialogContent>
       </Dialog>

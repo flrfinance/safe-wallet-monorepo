@@ -1,10 +1,11 @@
 import React from 'react'
-import { Box, Button, Divider, Grid, Typography } from '@mui/material'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Separator } from '@safe-global/views/components/ui/separator'
+import { Typography } from '@safe-global/views/components/ui/typography'
 
 import type { StepRenderProps } from '@/components/new-safe/CardStepper/useCardStepper'
 import type { LoadSafeFormData } from '@/components/new-safe/load'
 import layoutCss from '@/components/new-safe/create/styles.module.css'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ChainIndicator from '@/components/common/ChainIndicator'
 import css from '@/components/new-safe/create/steps/ReviewStep/styles.module.css'
 import EthHashInfo from '@/components/common/EthHashInfo'
@@ -15,7 +16,7 @@ import { addOrUpdateSafe } from '@/store/addedSafesSlice'
 import { defaultSafeInfo } from '@safe-global/store/slices/SafeInfo/utils'
 import { LOAD_SAFE_EVENTS, OPEN_SAFE_LABELS, OVERVIEW_EVENTS, trackEvent } from '@/services/analytics'
 import { AppRoutes } from '@/config/routes'
-import ReviewRow from '@/components/new-safe/ReviewRow'
+import ReviewRow from '@safe-global/views/components/new-safe/ReviewRow'
 import { upsertAddressBookEntries } from '@/store/addressBookSlice'
 import { maybePlural } from '@safe-global/utils/utils/formatters'
 
@@ -82,6 +83,7 @@ const SafeReviewStep = ({ data, onBack }: StepRenderProps<LoadSafeFormData>) => 
 
     router.push({
       pathname: AppRoutes.home,
+      // eslint-disable-next-line no-restricted-syntax -- A loaded Safe goes to My accounts, not to a Workspace
       query: { safe: `${chain?.shortName}:${safeAddress}` },
     })
   }
@@ -92,14 +94,14 @@ const SafeReviewStep = ({ data, onBack }: StepRenderProps<LoadSafeFormData>) => 
 
   return (
     <>
-      <Box className={layoutCss.row}>
-        <Grid container spacing={3}>
+      <div className={layoutCss.row}>
+        <div className="grid grid-cols-12 gap-6">
           <ReviewRow name="Network" value={<ChainIndicator chainId={chain?.chainId} inline />} />
           <ReviewRow name="Name" value={<Typography>{data.name}</Typography>} />
           <ReviewRow
             name="Signers"
             value={
-              <Box className={css.ownersArray}>
+              <div className={css.ownersArray}>
                 {data.owners.map((owner, index) => (
                   <EthHashInfo
                     address={owner.address}
@@ -112,7 +114,7 @@ const SafeReviewStep = ({ data, onBack }: StepRenderProps<LoadSafeFormData>) => 
                     key={index}
                   />
                 ))}
-              </Box>
+              </div>
             }
           />
           <ReviewRow
@@ -123,19 +125,19 @@ const SafeReviewStep = ({ data, onBack }: StepRenderProps<LoadSafeFormData>) => 
               </Typography>
             }
           />
-        </Grid>
-      </Box>
-      <Divider />
-      <Box className={layoutCss.row}>
-        <Box display="flex" flexDirection="row" justifyContent="space-between" gap={3}>
-          <Button variant="outlined" size="large" onClick={handleBack} startIcon={<ArrowBackIcon fontSize="small" />}>
+        </div>
+      </div>
+      <Separator />
+      <div className={layoutCss.row}>
+        <div className="flex justify-between gap-2">
+          <Button type="button" variant="outline" size="lg" onClick={handleBack}>
             Back
           </Button>
-          <Button onClick={addSafe} variant="contained" size="large">
+          <Button type="button" size="lg" onClick={addSafe}>
             Add
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </div>
     </>
   )
 }

@@ -1,0 +1,24 @@
+# Playwright E2E Guidelines
+
+All new web E2E tests are written here. (Cypress in `../cypress/` is legacy — maintenance only, see [../cypress/AGENTS.md](../cypress/AGENTS.md).)
+
+**Before writing any test, follow the 12-step AI Test Output Format in [docs/AI_TEST_OUTPUT_FORMAT.md](docs/AI_TEST_OUTPUT_FORMAT.md) — code is step 11 of 12.** Full conventions: [docs/README.md](docs/README.md).
+
+Cypress → Playwright migration: follow [docs/CYPRESS_MIGRATION_GUIDE.md](docs/CYPRESS_MIGRATION_GUIDE.md) — it defines the mandatory per-test classification **and** the staged programme (one stage at a time, easiest area first; each stage is a migration PR followed by a separate deletion PR after CI has run the new specs). Pick up work from the live queue in [docs/CYPRESS_PW_MIGRATION_STATUS.md](docs/CYPRESS_PW_MIGRATION_STATUS.md) and update it in the same PR.
+
+## Layout
+
+- `tests/{smoke,regression,api,e2e}/` — specs; they run on staging and, when registered in `environment/playwright-specs.mjs`, on the local stack. Read Safes and wallets from the `safes` and `credentials` fixtures, never from `SAFES` directly
+- `src/pages/` — page objects · `src/fixtures/` — fixtures · `src/data/` — test data · `src/api/` — API helpers
+
+## Commands
+
+The `pw:*` scripts live in the web workspace — run as `yarn workspace @safe-global/web <script>`: `pw:test` (all), `pw:test:smoke` / `pw:test:api` / `pw:test:ui` / `pw:test:regression` (by tag), `pw:report` (HTML report), `pw:ci` (CI mode — `@smoke|@api` with retries).
+
+CI: smoke + api run on **every PR** touching `apps/web/**` or `packages/**` (`web-pw-smoke.yml`); the full suite runs on demand and on a weekday cron (`web-pw-full-ondemand.yml`).
+
+## Isolated backend and Cypress regression
+
+`environment/run.mjs` launches the checked-in Anvil backend, the registered Cypress regression specs (`e2e:env cypress`) and the registered Playwright specs (`e2e:env playwright`), with data from the scenarios in `environment/scenarios/`. Run helper tests with `yarn workspace @safe-global/web e2e:env:test`. Preserve the fork hash, TXS indexing floor and CGW-visible scenario preconditions. Provider credentials must never reach the wallet, Cypress or Playwright processes.
+
+`web-isolated-e2e-backend.yml` builds the wallet before backend startup and runs Cypress shards plus one Playwright job on the same ARM runner type. The backend action leaves containers running; the workflow must always attempt cleanup after tests. Native dependency and build caches include runner architecture. Chromium comes from the installed Playwright version. See [local setup](docs/ISOLATED_ENVIRONMENT.md) and [backend guidance](environment/infra/AGENTS.md).

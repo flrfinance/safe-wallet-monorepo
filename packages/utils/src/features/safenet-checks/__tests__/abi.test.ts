@@ -1,0 +1,51 @@
+import {
+  CONSENSUS_EVENT_FRAGMENTS,
+  consensusInterface,
+  EVENT_DISPATCH,
+  SENTINEL_EVENT_FRAGMENTS,
+  TOPICS,
+  topicHashOf,
+} from '../abi'
+
+describe('safenet-checks abi', () => {
+  it('assigns a unique topic0 to every dispatched event (no collisions)', () => {
+    const topics = EVENT_DISPATCH.map(topicHashOf)
+    const unique = new Set(topics)
+    expect(unique.size).toBe(EVENT_DISPATCH.length)
+    // Every dispatch descriptor is reachable in the topic0 map.
+    expect(Object.keys(TOPICS)).toHaveLength(EVENT_DISPATCH.length)
+  })
+
+  it('covers every declared fragment across both interfaces', () => {
+    const totalFragments = CONSENSUS_EVENT_FRAGMENTS.length + SENTINEL_EVENT_FRAGMENTS.length
+    expect(EVENT_DISPATCH).toHaveLength(totalFragments)
+  })
+
+  it('matches the topic0s observed on the Consensus for the Safenet deployment on Gnosis Chain', () => {
+    expect(consensusInterface.getEvent('TransactionProposed')!.topicHash).toBe(
+      '0x47d867ce4d91d0487fa4d2ac80b13e7466ce53dd018a8eef564fc60c92b53d03',
+    )
+    expect(consensusInterface.getEvent('TransactionAttested')!.topicHash).toBe(
+      '0x1980afd018b6bb99a313d3b7a88274259621396f9b8acaa712ef114872977357',
+    )
+  })
+
+  it('matches the deployed event topic0s, including council resolution', () => {
+    const byName = Object.fromEntries(
+      EVENT_DISPATCH.map((dispatch) => [`${dispatch.type}:${dispatch.eventName}`, topicHashOf(dispatch)]),
+    )
+    expect(byName).toEqual({
+      'ORACLE_PROPOSED:TransactionProposed': '0x47d867ce4d91d0487fa4d2ac80b13e7466ce53dd018a8eef564fc60c92b53d03',
+      'ORACLE_ATTESTED:TransactionAttested': '0x1980afd018b6bb99a313d3b7a88274259621396f9b8acaa712ef114872977357',
+      'REQUEST_CREATED:NewRequest': '0x8ec61272960f97d43d7f8f85ed630aa512818577f3d1e548e7627b06dbbbda86',
+      'SENTINEL_COMMITTED:Committed': '0x45acbf2626c7d2bd97eb2142a43d392e8f3364c9e140b3d022446155491819d6',
+      'SENTINEL_REVEALED:Revealed': '0xd2cdead965dbd376703d9a79240f31f1228055ab42384b68353332fcd2af939a',
+      'ORACLE_RESULT:OracleResult': '0x7843c453c4f7442b00e1bf3873e741f18f3447e18a13304c58bef95efd311757',
+      'DISPUTE_RESOLVED:DisputeResolved': '0x7e739d167696b2e67be44f7ceb3afa7ad9e8ad5ee53d016de97ae7ab0b416a70',
+      'DISPUTE_TRIGGERED:DisputeTriggered': '0x86e8b85731e4787f033d85108356db1e068dea243be32d422e6dc5681ff49cc1',
+      'DISPUTE_OUT_OF_SCOPE:DisputeOutOfScope': '0xe32b95dcf423c9ed3915554e30a0db65ad08358b5e5bdb1138c98dcb745dbe81',
+      'ARBITRATION_TIMED_OUT:ArbitrationTimedOut': '0x5f19817b3ad988fdb5a7fb3f657a755e58a107bf47431574b7c516a6dc1551e6',
+      'REQUEST_TIMED_OUT:RequestTimedOut': '0xf1ca1e9147be737b04a2b018a79405f687a97de8dd8a2559bbe62357343af414',
+    })
+  })
+})

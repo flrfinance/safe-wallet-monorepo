@@ -30,7 +30,7 @@ describe('Tx history tests 2', () => {
         constants.stagingCGWSafes
       }${staticSafes.SEP_STATIC_SAFE_7.substring(4)}/transactions/history**`,
       (req) => {
-        req.url = `https://safe-client.staging.5afe.dev/v1/chains/11155111/safes/0x5912f6616c84024cD1aff0D5b55bb36F5180fFdb/transactions/history?timezone=Europe/Berlin&trusted=false&cursor=limit=100&offset=1`
+        req.url = `${constants.stagingCGWUrlv1}/chains/11155111/safes/${staticSafes.SEP_STATIC_SAFE_7.substring(4)}/transactions/history?timezone=Europe/Berlin&trusted=false&cursor=limit=100&offset=1`
         req.continue()
       },
     ).as('allTransactions')
@@ -48,8 +48,9 @@ describe('Tx history tests 2', () => {
     createTx.clickOnTransactionItemByName(typeOnchainRejection.title)
     createTx.verifyExpandedDetails([typeOnchainRejection.description])
     createTx.verifyActionListExists([
-      typeSideActions.rejectionCreated,
-      typeSideActions.confirmations,
+      typeSideActions.created,
+      typeSideActions.signedOneOfTwo,
+      typeSideActions.signedTwoOfTwo,
       typeSideActions.executedBy,
     ])
   })
@@ -66,7 +67,7 @@ describe('Tx history tests 2', () => {
   // Added to prod
   // Add owner
   it('Verify summary for adding owner', () => {
-    createTx.verifySummaryByName(typeAddOwner.title, null, [typeGeneral.statusOk], typeAddOwner.altImage)
+    createTx.verifySummaryByName(typeAddOwner.title, [typeGeneral.statusOk])
   })
 
   it('Verify expanded details for adding owner', () => {
@@ -80,7 +81,7 @@ describe('Tx history tests 2', () => {
   // Added to prod
   // Change owner
   it('Verify summary for changing owner', () => {
-    createTx.verifySummaryByName(typeChangeOwner.title, null, [typeGeneral.statusOk], typeChangeOwner.altImage)
+    createTx.verifySummaryByName(typeChangeOwner.title, [typeGeneral.statusOk])
   })
 
   // Added to prod
@@ -98,7 +99,7 @@ describe('Tx history tests 2', () => {
   // Added to prod
   // Remove owner
   it('Verify summary for removing owner', () => {
-    createTx.verifySummaryByName(typeRemoveOwner.title, null, [typeGeneral.statusOk], typeRemoveOwner.altImage)
+    createTx.verifySummaryByName(typeRemoveOwner.title, [typeGeneral.statusOk])
   })
 
   it('Verify expanded details for removing owner', () => {
@@ -113,7 +114,7 @@ describe('Tx history tests 2', () => {
   // Added to prod
   // Disbale module
   it('Verify summary for disable module', () => {
-    createTx.verifySummaryByName(typeDisableOwner.title, null, [typeGeneral.statusOk], typeDisableOwner.altImage)
+    createTx.verifySummaryByName(typeDisableOwner.title, [typeGeneral.statusOk])
   })
 
   it('Verify expanded details for disable module', () => {
@@ -124,7 +125,7 @@ describe('Tx history tests 2', () => {
   // Added to prod
   // Change threshold
   it('Verify summary for changing threshold', () => {
-    createTx.verifySummaryByName(typeChangeThreshold.title, null, [typeGeneral.statusOk], typeChangeThreshold.altImage)
+    createTx.verifySummaryByName(typeChangeThreshold.title, [typeGeneral.statusOk])
   })
 
   // Added to prod

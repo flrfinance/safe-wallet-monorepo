@@ -1,35 +1,41 @@
 import useWalletCanPay from '@/hooks/useWalletCanPay'
 import madProps from '@/utils/mad-props'
-import { type ReactElement, type SyntheticEvent, useContext, useState, useEffect } from 'react'
-import { Box, CardActions, Divider, Tooltip } from '@mui/material'
+import { type ReactElement, type ReactNode, type SyntheticEvent, useContext, useState, useEffect } from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@safe-global/views/components/ui/tooltip'
+import { Separator } from '@safe-global/views/components/ui/separator'
+import { Button } from '@safe-global/views/components/ui/button'
+import ModalDialog from '@/components/common/ModalDialog'
 import classNames from 'classnames'
 import ErrorMessage from '@/components/tx/ErrorMessage'
+import TxCheckError from '@/components/tx/TxCheckError'
 import { trackError, Errors } from '@/services/exceptions'
 import { useCurrentChain } from '@/hooks/useChains'
 import { getTxOptions } from '@/utils/transactions'
 import useIsValidExecution from '@/hooks/useIsValidExecution'
 import CheckWallet from '@/components/common/CheckWallet'
 import { useIsExecutionLoop, useTxActions } from '@/components/tx/shared/hooks'
-import { useRelaysBySafe } from '@/hooks/useRemainingRelays'
-import useWalletCanRelay from '@/hooks/useWalletCanRelay'
 import { ExecutionMethod, ExecutionMethodSelector } from '@/components/tx/ExecutionMethodSelector'
-import { useNoFeeCampaignEligibility, useGasTooHigh, useIsNoFeeCampaignEnabled } from '@/features/no-fee-campaign'
-import { hasRemainingRelays } from '@/utils/relaying'
+import { useGasPaymentOptions } from '@/hooks/useGasPaymentOptions'
+import { getGasPayment } from '@/utils/gasPayment'
+import { getGasPaymentRefusal } from '@/components/tx/gasPaymentRefusal'
 import type { SafeTransaction } from '@safe-global/types-kit'
 import { TxModalContext } from '@/components/tx-flow'
-import { SuccessScreenFlow } from '@/components/tx-flow/flows'
+import { SuccessScreenFlow, NestedTxSuccessScreenFlow } from '@/components/tx-flow/flows'
+import { useSafeScope } from '@safe-global/views/components/tx-flow/safe-scope'
 import useGasLimit from '@/hooks/useGasLimit'
 import AdvancedParams, { useAdvancedParams } from '@/components/tx/AdvancedParams'
 import { asError } from '@safe-global/utils/services/exceptions/utils'
 import { isWalletRejection } from '@/utils/wallets'
 import css from './styles.module.css'
-import commonCss from '@/components/tx-flow/common/styles.module.css'
+import commonCss from '@safe-global/views/components/tx-flow/common/styles.module.css'
 import useIsSafeOwner from '@/hooks/useIsSafeOwner'
 import NonOwnerError from '@/components/tx/shared/errors/NonOwnerError'
-import SplitMenuButton from '@/components/common/SplitMenuButton'
+import SplitMenuButton from '@safe-global/views/components/common/SplitMenuButton'
+import { TxCardActions } from '@safe-global/views/components/tx-flow/common/TxCard'
 import type { SlotComponentProps, SlotName } from '../../slots'
 import { TxFlowContext } from '../../TxFlowProvider'
 import { useSafeShield } from '@/features/safe-shield/SafeShieldContext'
+import { RelaySimulationError } from '@safe-global/utils/services/relayErrors'
 
 export const ExecuteForm = ({
   safeTx,
@@ -41,13 +47,13 @@ export const ExecuteForm = ({
   disableSubmit = false,
   origin,
   onlyExecute,
-  isCreation,
   isOwner,
   isExecutionLoop,
   slotId,
   txActions,
   tooltip,
   txSecurity,
+  secondaryAction,
 }: SlotComponentProps<SlotName.ComboSubmit> & {
   txId?: string
   disableSubmit?: boolean
@@ -60,77 +66,63 @@ export const ExecuteForm = ({
   isCreation?: boolean
   safeTx?: SafeTransaction
   tooltip?: string
+  secondaryAction?: ReactNode
 }): ReactElement => {
   // Hooks
   const currentChain = useCurrentChain()
   const { executeTx } = txActions
   const { setTxFlow } = useContext(TxModalContext)
+  const scope = useSafeScope()
   const { needsRiskConfirmation, isRiskConfirmed } = txSecurity
-  const { isSubmitDisabled, isSubmitLoading, setIsSubmitLoading, setSubmitError, setIsRejectedByUser } =
-    useContext(TxFlowContext)
+  const {
+    isSubmitDisabled,
+    isSubmitLoading,
+    setIsSubmitLoading,
+    setSubmitError,
+    setIsRejectedByUser,
+    setGasPaymentOption,
+  } = useContext(TxFlowContext)
 
-  // SC wallets can relay fully signed transactions
-  const [walletCanRelay] = useWalletCanRelay(safeTx)
-  const relays = useRelaysBySafe()
-  const { isEligible: isNoFeeCampaign, remaining, limit, blockedAddress } = useNoFeeCampaignEligibility()
-  const isNoFeeCampaignEnabled = useIsNoFeeCampaignEnabled()
-  const gasTooHigh = useGasTooHigh(safeTx)
-
-  // We default to relay, but the option is only shown if we canRelay
+  const { offer, showsProUpsell, exclude } = useGasPaymentOptions({ safeTx })
   const [executionMethod, setExecutionMethod] = useState(ExecutionMethod.RELAY)
+  const { gasPayer, sponsorSpaceId } = getGasPayment(offer, executionMethod)
+  const willRelay = gasPayer !== 'WALLET'
+  const showExecutionSelector = offer !== null || showsProUpsell
 
-  // No-fee Campaign REPLACES relay when eligible AND not blocked AND gas is not too high AND has remaining
-  const canRelay = (!isNoFeeCampaign || !isNoFeeCampaignEnabled) && walletCanRelay && hasRemainingRelays(relays[0])
-  const canNoFeeCampaign =
-    isNoFeeCampaignEnabled && isNoFeeCampaign && !blockedAddress && !gasTooHigh && !!remaining && remaining > 0
-  const isLimitReached = isNoFeeCampaignEnabled && isNoFeeCampaign && !blockedAddress && remaining === 0
-
-  // If gas is too high or limit reached, force WALLET method
   useEffect(() => {
-    if (gasTooHigh || isLimitReached) {
-      setExecutionMethod(ExecutionMethod.WALLET)
-    }
-  }, [gasTooHigh, isLimitReached])
-
-  // Handle execution method changes
-  const handleExecutionMethodChange = (method: ExecutionMethod | ((prev: ExecutionMethod) => ExecutionMethod)) => {
-    const newMethod = typeof method === 'function' ? method(executionMethod) : method
-    setExecutionMethod(newMethod)
-  }
-
-  // Show execution selector when either no-fee campaign OR relay is available
-  // Also show if gas is too high but feature is otherwise available (to show disabled state)
-  // Or if limit is reached (to show 0/X available state)
-  const showExecutionSelector =
-    canNoFeeCampaign ||
-    canRelay ||
-    (isNoFeeCampaignEnabled && isNoFeeCampaign && !blockedAddress && gasTooHigh) ||
-    isLimitReached
-
-  // Determine which method will be used
-  const willRelay = !!(canRelay && executionMethod === ExecutionMethod.RELAY)
-  const willNoFeeCampaign = !!(
-    isNoFeeCampaignEnabled &&
-    canNoFeeCampaign &&
-    executionMethod === ExecutionMethod.NO_FEE_CAMPAIGN
-  )
+    setGasPaymentOption(gasPayer)
+    return () => setGasPaymentOption(undefined)
+  }, [gasPayer, setGasPaymentOption])
 
   // Estimate gas limit
   const { gasLimit, gasLimitError } = useGasLimit(safeTx)
   const [advancedParams, setAdvancedParams] = useAdvancedParams(gasLimit)
 
-  // Check if transaction will fail
   const { executionValidationError } = useIsValidExecution(
     safeTx,
     advancedParams.gasLimit ? advancedParams.gasLimit : undefined,
   )
 
-  // On modal submit
-  const handleSubmit = async (e: SyntheticEvent) => {
-    e.preventDefault()
+  // Pre-execution check error (validity simulation or gas estimation).
+  const checkError = executionValidationError || gasLimitError
 
+  // CGW pre-relay simulation outcome (SIMULATION_FAILED blocks; INDETERMINATE offers an override).
+  const [relaySimError, setRelaySimError] = useState<RelaySimulationError | undefined>(undefined)
+  const [refusalMessage, setRefusalMessage] = useState<string>()
+
+  // Clear a stale simulation verdict when the payload changes (e.g. user edits params / gas token).
+  useEffect(() => {
+    setRelaySimError(undefined)
+    setRefusalMessage(undefined)
+  }, [safeTx?.data])
+
+  // `acceptUnverifiedSimulation` is only set when the user explicitly retries past an
+  // INDETERMINATE_SIMULATION; CGW ignores it for SIMULATION_FAILED (fail-closed).
+  const submitTx = async (acceptUnverifiedSimulation = false) => {
     setIsSubmitLoading(true)
     setSubmitError(undefined)
+    setRelaySimError(undefined)
+    setRefusalMessage(undefined)
     setIsRejectedByUser(false)
 
     const txOptions = getTxOptions(advancedParams, currentChain)
@@ -138,12 +130,27 @@ export const ExecuteForm = ({
     onSubmit?.()
 
     let executedTxId: string
+    let isExecuted: boolean
     try {
-      executedTxId = await executeTx(txOptions, safeTx, txId, origin, willRelay || willNoFeeCampaign)
+      ;({ txId: executedTxId, isExecuted } = await executeTx(
+        txOptions,
+        safeTx,
+        txId,
+        origin,
+        willRelay,
+        acceptUnverifiedSimulation,
+        sponsorSpaceId,
+      ))
     } catch (_err) {
       const err = asError(_err)
+      const refusal = getGasPaymentRefusal(err, gasPayer)
       if (isWalletRejection(err)) {
         setIsRejectedByUser(true)
+      } else if (err instanceof RelaySimulationError) {
+        setRelaySimError(err)
+      } else if (refusal) {
+        exclude(refusal.excluded)
+        setRefusalMessage(refusal.message)
       } else {
         trackError(Errors._804, err)
         setSubmitError(err)
@@ -153,9 +160,24 @@ export const ExecuteForm = ({
       return
     }
 
-    // On success
-    onSubmitSuccess?.({ txId: executedTxId, isExecuted: true })
-    setTxFlow(<SuccessScreenFlow txId={executedTxId} />, undefined, false)
+    // A queuing Safe executor returns a safeTxHash, so the explorer link would be wrong
+    onSubmitSuccess?.({ txId: executedTxId, isExecuted })
+    const successScope = scope ? { chainId: scope.chainId, safeAddress: scope.safeAddress } : undefined
+    setTxFlow(
+      isExecuted ? (
+        <SuccessScreenFlow txId={executedTxId} scope={successScope} />
+      ) : (
+        <NestedTxSuccessScreenFlow txId={executedTxId} />
+      ),
+      undefined,
+      false,
+    )
+  }
+
+  // On modal submit
+  const handleSubmit = (e: SyntheticEvent) => {
+    e.preventDefault()
+    submitTx()
   }
 
   const walletCanPay = useWalletCanPay({
@@ -164,6 +186,7 @@ export const ExecuteForm = ({
   })
 
   const cannotPropose = !isOwner && !onlyExecute
+
   const submitDisabled =
     !safeTx ||
     isSubmitDisabled ||
@@ -171,12 +194,13 @@ export const ExecuteForm = ({
     disableSubmit ||
     isExecutionLoop ||
     cannotPropose ||
+    relaySimError?.code === 'SIMULATION_FAILED' ||
     (needsRiskConfirmation && !isRiskConfirmed)
 
   return (
     <>
       <form onSubmit={handleSubmit}>
-        <div className={classNames(commonCss.params, { [css.noBottomBorderRadius]: canRelay })}>
+        <div className={classNames(commonCss.params, { [css.noBottomBorderRadius]: showExecutionSelector })}>
           <AdvancedParams
             willExecute
             params={advancedParams}
@@ -185,8 +209,8 @@ export const ExecuteForm = ({
             gasLimitError={gasLimitError}
             willRelay={willRelay}
             noFeeCampaign={
-              (canNoFeeCampaign || isLimitReached) && executionMethod !== ExecutionMethod.WALLET
-                ? { isEligible: true, remaining: remaining || 0, limit: limit || 0 }
+              offer?.option === 'NO_FEE_CAMPAIGN' && gasPayer === 'NO_FEE_CAMPAIGN'
+                ? { isEligible: true, remaining: offer.remaining, limit: offer.limit }
                 : undefined
             }
           />
@@ -195,14 +219,9 @@ export const ExecuteForm = ({
             <div className={css.noTopBorder}>
               <ExecutionMethodSelector
                 executionMethod={executionMethod}
-                setExecutionMethod={handleExecutionMethodChange}
-                relays={canNoFeeCampaign ? undefined : relays[0]}
-                noFeeCampaign={
-                  isNoFeeCampaign && !blockedAddress
-                    ? { isEligible: true, remaining: remaining || 0, limit: limit || 0 }
-                    : undefined
-                }
-                gasTooHigh={gasTooHigh}
+                setExecutionMethod={setExecutionMethod}
+                offer={offer}
+                showsProUpsell={showsProUpsell}
               />
             </div>
           )}
@@ -213,29 +232,78 @@ export const ExecuteForm = ({
           <NonOwnerError />
         ) : isExecutionLoop ? (
           <ErrorMessage>
-            Cannot execute a transaction from the Safe Account itself, please connect a different account.
+            Cannot execute a transaction from the Safe account itself, please connect a different account.
           </ErrorMessage>
-        ) : !walletCanPay && !willRelay && !willNoFeeCampaign ? (
+        ) : !walletCanPay && !willRelay ? (
           <ErrorMessage level="info">
             Your connected wallet doesn&apos;t have enough funds to execute this transaction.
           </ErrorMessage>
-        ) : (
-          (executionValidationError || gasLimitError) && (
-            <ErrorMessage error={executionValidationError || gasLimitError} context="estimation">
-              This transaction will most likely fail.
-              {` To save gas costs, ${isCreation ? 'avoid creating' : 'reject'} this transaction.`}
-            </ErrorMessage>
-          )
+        ) : checkError ? (
+          <TxCheckError error={checkError} context="estimation" />
+        ) : null}
+
+        {refusalMessage && <ErrorMessage level="warning">{refusalMessage}</ErrorMessage>}
+
+        {/* CGW pre-relay simulation verdict */}
+        {relaySimError?.code === 'SIMULATION_FAILED' && (
+          <ErrorMessage>
+            This transaction is expected to fail on-chain, so it can&apos;t be relayed. Review the transaction or reject
+            it.
+          </ErrorMessage>
         )}
 
-        <Divider className={commonCss.nestedDivider} sx={{ pt: 3 }} />
+        <ModalDialog
+          open={relaySimError?.code === 'INDETERMINATE_SIMULATION'}
+          onClose={() => setRelaySimError(undefined)}
+          dialogTitle="Confirm execution"
+          chainId={currentChain?.chainId}
+          data-testid="relay-indeterminate-dialog"
+        >
+          <div className="px-6 pt-2 pb-4">
+            We couldn&apos;t review this transaction. If you execute and it fails, you&apos;ll still pay the network
+            fee. You can run the simulation yourself from the Safe Shield panel before deciding.
+          </div>
 
-        <CardActions>
-          {/* Submit button */}
-          <CheckWallet allowNonOwner={onlyExecute} checkNetwork={!submitDisabled}>
-            {(isOk) => (
-              <Tooltip title={tooltip} placement="top">
-                <Box sx={{ minWidth: '112px', width: ['100%', '100%', '100%', 'auto'] }}>
+          <div className="flex justify-between gap-2 p-6 pt-2">
+            <Button data-testid="relay-go-back-btn" variant="ghost" onClick={() => setRelaySimError(undefined)}>
+              Back
+            </Button>
+            <Button data-testid="relay-accept-unverified-btn" disabled={isSubmitLoading} onClick={() => submitTx(true)}>
+              Execute anyway
+            </Button>
+          </div>
+        </ModalDialog>
+
+        <div className="py-6">
+          <Separator bleed="6" />
+        </div>
+
+        <TxCardActions className={secondaryAction ? '[&>div]:w-full [&>div]:justify-between' : undefined}>
+          {secondaryAction}
+
+          {/* Shrink-wraps the split button so a full-width row keeps it at content width */}
+          <div>
+            <CheckWallet allowNonOwner={onlyExecute} checkNetwork={!submitDisabled}>
+              {(isOk) =>
+                tooltip ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <div>
+                          <SplitMenuButton
+                            selected={slotId}
+                            onChange={({ id }) => onChange?.(id)}
+                            options={options}
+                            disabled={!isOk || submitDisabled}
+                            loading={isSubmitLoading}
+                            tooltip={tooltip}
+                          />
+                        </div>
+                      }
+                    />
+                    <TooltipContent side="top">{tooltip}</TooltipContent>
+                  </Tooltip>
+                ) : (
                   <SplitMenuButton
                     selected={slotId}
                     onChange={({ id }) => onChange?.(id)}
@@ -244,11 +312,11 @@ export const ExecuteForm = ({
                     loading={isSubmitLoading}
                     tooltip={tooltip}
                   />
-                </Box>
-              </Tooltip>
-            )}
-          </CheckWallet>
-        </CardActions>
+                )
+              }
+            </CheckWallet>
+          </div>
+        </TxCardActions>
       </form>
     </>
   )

@@ -1,0 +1,231 @@
+import { deriveCheckState } from '../deriveCheckState'
+import { rulingEventFor } from '../openDispute'
+import {
+  attestedEvent,
+  disputeResolvedEvent,
+  disputeTriggeredEvent,
+  oracleResultEvent,
+  proposedEvent,
+  requestCreatedEvent,
+  sentinelCommittedEvent,
+  sentinelRevealedEvent,
+} from '../../builders/checkEvents'
+import {
+  AttestationVerificationStatus,
+  CheckEventType,
+  CheckStatus,
+  DisputeOutcome,
+  OracleRequestState,
+  UNVERIFIED_ATTESTATION,
+  type AttestationVerification,
+  type NormalizedCheckEvent,
+} from '../../types'
+
+const verification = (status: AttestationVerificationStatus): AttestationVerification => ({
+  status,
+  signatureId: '0xsig',
+  message: '0xmsg',
+})
+
+const derive = (
+  events: NormalizedCheckEvent[],
+  headBlock: string | null = '140',
+  attestation: AttestationVerification = UNVERIFIED_ATTESTATION,
+) => deriveCheckState({ events, headBlock, attestation })
+
+// A request that times out at block 150.
+const request = () => requestCreatedEvent({ deadlineBlock: '150', commitDeadlineBlock: '150' })
+
+describe('deriveCheckState — precedence table', () => {
+  it('SUBMITTED when only proposed', () => {
+    expect(derive([proposedEvent()])).toBe(CheckStatus.SUBMITTED)
+  })
+
+  it('UNAVAILABLE for an empty event set — nothing was ever proposed for this hash', () => {
+    expect(derive([])).toBe(CheckStatus.UNAVAILABLE)
+  })
+
+  it('IN_PROGRESS once a request is open, pre-deadline', () => {
+    expect(derive([proposedEvent(), request()], '140')).toBe(CheckStatus.IN_PROGRESS)
+  })
+
+  it('IN_PROGRESS on commit activity (commits are blind, no verdict yet)', () => {
+    const events = [proposedEvent(), request(), sentinelCommittedEvent()]
+    expect(derive(events, '140')).toBe(CheckStatus.IN_PROGRESS)
+  })
+
+  it('positive OracleResult alone is NOT BENIGN — it is IN_PROGRESS', () => {
+    const events = [proposedEvent(), request(), oracleResultEvent({ approved: true })]
+    expect(derive(events, '140')).toBe(CheckStatus.IN_PROGRESS)
+  })
+
+  it('AWAITING_VERIFICATION when attested but not yet verified', () => {
+    const events = [proposedEvent(), request(), attestedEvent()]
+    expect(derive(events, '140', UNVERIFIED_ATTESTATION)).toBe(CheckStatus.AWAITING_VERIFICATION)
+    expect(derive(events, '140', verification(AttestationVerificationStatus.PENDING))).toBe(
+      CheckStatus.AWAITING_VERIFICATION,
+    )
+  })
+
+  it('BENIGN only when attested AND verified', () => {
+    const events = [proposedEvent(), request(), attestedEvent(), oracleResultEvent({ approved: true })]
+    expect(derive(events, '140', verification(AttestationVerificationStatus.VERIFIED))).toBe(CheckStatus.BENIGN)
+  })
+
+  it('VERIFICATION_FAILED when attested but signature invalid — never BENIGN', () => {
+    const events = [proposedEvent(), request(), attestedEvent()]
+    const status = derive(events, '140', verification(AttestationVerificationStatus.INVALID))
+    expect(status).toBe(CheckStatus.VERIFICATION_FAILED)
+    expect(status).not.toBe(CheckStatus.BENIGN)
+  })
+
+  it('a lone negative reveal is NOT a verdict — the oracle resolves by unanimity', () => {
+    const events = [proposedEvent(), request(), sentinelRevealedEvent({ approved: false })]
+    expect(derive(events, '140')).toBe(CheckStatus.IN_PROGRESS)
+  })
+
+  it('MALICIOUS on a negative OracleResult', () => {
+    const events = [proposedEvent(), request(), oracleResultEvent({ approved: false })]
+    expect(derive(events, '140')).toBe(CheckStatus.MALICIOUS)
+  })
+
+  it('TIMED_OUT past the deadline with no verdict', () => {
+    expect(derive([proposedEvent(), request()], '151')).toBe(CheckStatus.TIMED_OUT)
+  })
+
+  it('TIMED_OUT for a frozen dispute past the deadline', () => {
+    const events = [proposedEvent(), request(), disputeResolvedEvent()]
+    expect(derive(events, '151')).toBe(CheckStatus.TIMED_OUT)
+  })
+})
+
+describe('Gnosis Chain deployment arbitration', () => {
+  it('settles council denial without OracleResult, even after the deadline', () => {
+    const denied = disputeResolvedEvent({ outcome: DisputeOutcome.RESOLVED_DENIED })
+    expect(derive([proposedEvent(), request(), denied], '999')).toBe(CheckStatus.MALICIOUS)
+    expect(derive([denied, attestedEvent()], '999', verification(AttestationVerificationStatus.VERIFIED))).toBe(
+      CheckStatus.MALICIOUS,
+    )
+  })
+
+  it('never approves from a council ruling without an attestation', () => {
+    const approved = disputeResolvedEvent({ outcome: DisputeOutcome.RESOLVED_APPROVED })
+    expect(derive([proposedEvent(), request(), approved])).toBe(CheckStatus.IN_PROGRESS)
+  })
+
+  it('keeps a ruled dispute inconclusive until it is denied or attested', () => {
+    const event = disputeTriggeredEvent({ deadlineBlock: '200' })
+    expect(derive([event, disputeResolvedEvent({ outcome: DisputeOutcome.RESOLVED_APPROVED })], '160')).toBe(
+      CheckStatus.TIMED_OUT,
+    )
+    expect(derive([event, disputeResolvedEvent({ outcome: DisputeOutcome.RESOLVED_DENIED })], '160')).toBe(
+      CheckStatus.MALICIOUS,
+    )
+    expect(derive([event, attestedEvent()], '201', verification(AttestationVerificationStatus.VERIFIED))).toBe(
+      CheckStatus.BENIGN,
+    )
+  })
+
+  it.each([
+    CheckEventType.DISPUTE_OUT_OF_SCOPE,
+    CheckEventType.ARBITRATION_TIMED_OUT,
+    CheckEventType.REQUEST_TIMED_OUT,
+  ] as const)('shows %s as inconclusive before the request deadline', (type) => {
+    const event = { ...disputeResolvedEvent(), type, deadlineBlock: '200' }
+    expect(derive([proposedEvent(), request(), event], '140')).toBe(CheckStatus.TIMED_OUT)
+    expect(derive([event, attestedEvent()], '140', verification(AttestationVerificationStatus.VERIFIED))).toBe(
+      CheckStatus.BENIGN,
+    )
+  })
+})
+
+describe('deriveCheckState — head == deadline boundary', () => {
+  it('stays IN_PROGRESS at head == deadline (reveal window is inclusive)', () => {
+    expect(derive([proposedEvent(), request()], '150')).toBe(CheckStatus.IN_PROGRESS)
+  })
+
+  it('TIMED_OUT one block later', () => {
+    expect(derive([proposedEvent(), request()], '151')).toBe(CheckStatus.TIMED_OUT)
+  })
+})
+
+describe('deriveCheckState — late verdicts beat the deadline', () => {
+  it('late BENIGN: attested+verified past deadline is BENIGN, not TIMED_OUT', () => {
+    const events = [proposedEvent(), request(), attestedEvent()]
+    expect(derive(events, '999', verification(AttestationVerificationStatus.VERIFIED))).toBe(CheckStatus.BENIGN)
+  })
+
+  it('late MALICIOUS: a negative verdict past deadline is MALICIOUS, not TIMED_OUT', () => {
+    const events = [proposedEvent(), request(), oracleResultEvent({ approved: false })]
+    expect(derive(events, '999')).toBe(CheckStatus.MALICIOUS)
+  })
+
+  it('VERIFICATION_FAILED past deadline stays VERIFICATION_FAILED, not TIMED_OUT', () => {
+    const events = [proposedEvent(), request(), attestedEvent()]
+    expect(derive(events, '999', verification(AttestationVerificationStatus.INVALID))).toBe(
+      CheckStatus.VERIFICATION_FAILED,
+    )
+  })
+})
+
+describe('deriveCheckState — negative verdict outranks a verified attestation', () => {
+  it('MALICIOUS wins over attested+verified when both are present', () => {
+    const events = [proposedEvent(), request(), attestedEvent(), oracleResultEvent({ approved: false })]
+    expect(derive(events, '140', verification(AttestationVerificationStatus.VERIFIED))).toBe(CheckStatus.MALICIOUS)
+  })
+})
+
+describe('deriveCheckState — order independence', () => {
+  it('a reversed event set derives the same status (derive is a fold, not a replay)', () => {
+    const events = [proposedEvent(), request(), attestedEvent(), oracleResultEvent({ approved: false })]
+    const verified = verification(AttestationVerificationStatus.VERIFIED)
+    expect(derive([...events].reverse(), '140', verified)).toBe(derive(events, '140', verified))
+    expect(derive([...events].reverse(), '140', verified)).toBe(CheckStatus.MALICIOUS)
+  })
+})
+
+describe('deriveCheckState — open dispute', () => {
+  const triggered = disputeTriggeredEvent({ deadlineBlock: '200' })
+  const ruled = (state: OracleRequestState) => rulingEventFor(triggered.requestId, state, 160)
+
+  it.each(['140', '160', '200', '201'])('is DISPUTED at head %s while no ruling exists', (head) => {
+    expect(derive([proposedEvent(), request(), triggered], head)).toBe(CheckStatus.DISPUTED)
+  })
+
+  it.each([
+    CheckEventType.DISPUTE_RESOLVED,
+    CheckEventType.ARBITRATION_TIMED_OUT,
+    CheckEventType.DISPUTE_OUT_OF_SCOPE,
+  ] as const)('is TIMED_OUT once %s closes it', (type) => {
+    const closing = { ...disputeResolvedEvent({ outcome: DisputeOutcome.RESOLVED_APPROVED }), type }
+    expect(derive([request(), triggered, closing], '160')).toBe(CheckStatus.TIMED_OUT)
+  })
+
+  it('yields to a negative verdict and to a verified attestation', () => {
+    const denied = oracleResultEvent({ approved: false })
+    expect(derive([request(), triggered, denied], '160')).toBe(CheckStatus.MALICIOUS)
+    expect(
+      derive([request(), triggered, attestedEvent()], '160', verification(AttestationVerificationStatus.VERIFIED)),
+    ).toBe(CheckStatus.BENIGN)
+  })
+
+  it('stays DISPUTED when getRequest reports it frozen', () => {
+    expect(ruled(OracleRequestState.FROZEN)).toBeNull()
+    expect(derive([request(), triggered], '160')).toBe(CheckStatus.DISPUTED)
+  })
+
+  it('is MALICIOUS when getRequest reports the dispute denied', () => {
+    const events = [request(), triggered, ruled(OracleRequestState.RESOLVED_DENIED)!]
+    expect(derive(events, '160')).toBe(CheckStatus.MALICIOUS)
+  })
+
+  it('is TIMED_OUT when getRequest reports the arbitration timed out', () => {
+    const events = [request(), triggered, ruled(OracleRequestState.TIMED_OUT)!]
+    expect(derive(events, '160')).toBe(CheckStatus.TIMED_OUT)
+  })
+
+  it('is TIMED_OUT when getRequest reports the dispute approved and no attestation exists', () => {
+    const events = [request(), triggered, ruled(OracleRequestState.RESOLVED_APPROVED)!]
+    expect(derive(events, '160')).toBe(CheckStatus.TIMED_OUT)
+  })
+})

@@ -3,16 +3,21 @@ import { ArrowUpRight } from 'lucide-react'
 import { AppRoutes } from '@/config/routes'
 import { GeoblockingContext } from '@/components/common/GeoblockingProvider'
 import { SafeSidebarContent } from '../SafeSidebarContent'
-import type { SidebarGroupConfig, SidebarItemConfig } from '../../../types'
+import type {
+  SidebarGroupConfig,
+  SidebarItemConfig,
+  SafeSidebarVariantProps,
+} from '@safe-global/views/features/spaces/components/Sidebar/types'
 
 const mockUseResolvedSidebarNav = jest.fn()
 const mockIsRouteEnabled = jest.fn()
 
 const mockRouterPathname = { current: AppRoutes.home }
+const SPACE_ID = '11111111-1111-1111-1111-111111111111'
 
 jest.mock('next/router', () => ({
   useRouter: () => ({
-    query: { spaceId: '123', safe: 'eth:0x1' },
+    query: { spaceId: SPACE_ID, safe: 'eth:0x1' },
     pathname: mockRouterPathname.current,
     replace: jest.fn(),
   }),
@@ -63,7 +68,7 @@ jest.mock('../../../config', () => {
 const mockSafeSidebarVariant = jest.fn()
 
 jest.mock('../../SafeSidebarVariant', () => ({
-  SafeSidebarVariant: (props: unknown) => {
+  SafeSidebarVariant: (props: SafeSidebarVariantProps) => {
     mockSafeSidebarVariant(props)
     return <div>Safe sidebar</div>
   },
@@ -81,7 +86,7 @@ type CallArgs = [
   },
 ]
 
-const getCallArgs = () => mockUseResolvedSidebarNav.mock.calls[0] as CallArgs
+const getCallArgs = () => mockUseResolvedSidebarNav.mock.calls.at(-1) as CallArgs
 
 const renderWithGeoblocking = (isBlockedCountry: boolean | null) =>
   render(
@@ -91,6 +96,8 @@ const renderWithGeoblocking = (isBlockedCountry: boolean | null) =>
   )
 
 describe('SafeSidebarContent', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+
   beforeEach(() => {
     jest.clearAllMocks()
     mockIsRouteEnabled.mockReturnValue(true)
@@ -260,26 +267,6 @@ describe('SafeSidebarContent', () => {
     })
   })
 
-  describe('onSpaceAdded propagation', () => {
-    it('passes onSpaceAdded into the addToWorkspace workspaceHeader when no space is selected', () => {
-      const onSpaceAdded = jest.fn()
-      render(
-        <GeoblockingContext.Provider value={false}>
-          <SafeSidebarContent spaces={[{ id: 1, name: 'My Space', safeCount: 0 }]} onSpaceAdded={onSpaceAdded} />
-        </GeoblockingContext.Provider>,
-      )
-
-      expect(mockSafeSidebarVariant).toHaveBeenCalledWith(
-        expect.objectContaining({
-          workspaceHeader: expect.objectContaining({
-            variant: 'addToWorkspace',
-            onSpaceAdded,
-          }),
-        }),
-      )
-    })
-  })
-
   describe('getLink', () => {
     it('routes Transactions entry to Queue when the queue is non-empty', () => {
       mockUseQueuedTxsLength.mockReturnValue('3')
@@ -298,6 +285,15 @@ describe('SafeSidebarContent', () => {
       expect(getLink({ href: AppRoutes.stake } as SidebarItemConfig).pathname).toBe(AppRoutes.stake)
     })
 
+    it('keeps the Workspace of the URL in every link', () => {
+      window.history.replaceState(null, '', `/home?safe=eth:0x1&spaceId=${SPACE_ID}`)
+      render(<SafeSidebarContent {...defaultProps} />)
+
+      const [, , { getLink }] = getCallArgs()
+      expect(getLink({ href: AppRoutes.home } as SidebarItemConfig).query.spaceId).toBe(SPACE_ID)
+      expect(getLink({ href: AppRoutes.swap } as SidebarItemConfig).query.spaceId).toBe(SPACE_ID)
+    })
+
     it('routes Transactions entry to History when the queue is empty', () => {
       mockUseQueuedTxsLength.mockReturnValue('')
       render(<SafeSidebarContent {...defaultProps} />)
@@ -306,6 +302,35 @@ describe('SafeSidebarContent', () => {
       expect(getLink({ href: AppRoutes.transactions.history } as SidebarItemConfig).pathname).toBe(
         AppRoutes.transactions.history,
       )
+    })
+  })
+
+  describe('transactions badge', () => {
+    const findTxItem = (mainNav: SidebarItemConfig[]) =>
+      mainNav.find((item) => item.href === AppRoutes.transactions.history)
+
+    it('uses a numeric badge when the queue size is parseable', () => {
+      mockUseQueuedTxsLength.mockReturnValue('5')
+      render(<SafeSidebarContent {...defaultProps} />)
+
+      const [mainNav] = getCallArgs()
+      expect(findTxItem(mainNav)?.badge).toBe(5)
+    })
+
+    it('preserves the masked "20+" string when the queue exceeds the cap', () => {
+      mockUseQueuedTxsLength.mockReturnValue('20+')
+      render(<SafeSidebarContent {...defaultProps} />)
+
+      const [mainNav] = getCallArgs()
+      expect(findTxItem(mainNav)?.badge).toBe('20+')
+    })
+
+    it('passes through an empty queue size without rendering a badge', () => {
+      mockUseQueuedTxsLength.mockReturnValue('')
+      render(<SafeSidebarContent {...defaultProps} />)
+
+      const [mainNav] = getCallArgs()
+      expect(findTxItem(mainNav)?.badge).toBe('')
     })
   })
 })

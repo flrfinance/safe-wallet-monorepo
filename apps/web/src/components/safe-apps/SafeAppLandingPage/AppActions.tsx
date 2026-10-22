@@ -1,4 +1,7 @@
-import { Box, Button, MenuItem, Select, Typography, Grid, FormControl, InputLabel } from '@mui/material'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { Label } from '@safe-global/views/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@safe-global/views/components/ui/select'
 import type { SafeApp as SafeAppData } from '@safe-global/store/gateway/AUTO_GENERATED/safe-apps'
 import type { Chain } from '@safe-global/store/gateway/AUTO_GENERATED/chains'
 import { useEffect, useMemo, useState } from 'react'
@@ -14,7 +17,7 @@ import SafeIcon from '@/components/common/SafeIcon'
 import EthHashInfo from '@/components/common/EthHashInfo'
 import { AppRoutes } from '@/config/routes'
 import useOwnedSafes from '@/hooks/useOwnedSafes'
-import { CTA_BUTTON_WIDTH, CTA_HEIGHT } from '@/components/safe-apps/SafeAppLandingPage/constants'
+import { CTA_BUTTON_WIDTH, CTA_HEIGHT } from '@safe-global/views/components/safe-apps/SafeAppLandingPage/constants'
 import CreateNewSafeSVG from '@/public/images/open/safe-creation.svg'
 
 type Props = {
@@ -58,15 +61,14 @@ const AppActions = ({ wallet, onConnectWallet, chain, appUrl, app }: Props): Rea
       const safe = `${safeToUse?.shortName}:${safeToUse?.address}`
       const href: UrlObject = {
         pathname: AppRoutes.apps.open,
+        // eslint-disable-next-line no-restricted-syntax -- The shared Safe App page picks one of the user's Safes and has no Workspace
         query: { safe, appUrl },
       }
 
       button = (
-        <Link href={href} passHref legacyBehavior>
-          <Button variant="contained" sx={{ width: CTA_BUTTON_WIDTH }} disabled={!safeToUse}>
-            Use app
-          </Button>
-        </Link>
+        <Button style={{ width: CTA_BUTTON_WIDTH }} disabled={!safeToUse} render={<Link href={href} />}>
+          Use app
+        </Button>
       )
       break
     case shouldCreateSafe:
@@ -76,16 +78,14 @@ const AppActions = ({ wallet, onConnectWallet, chain, appUrl, app }: Props): Rea
         query: { safeViewRedirectURL: redirect, chain: chain.shortName },
       }
       button = (
-        <Link href={createSafeHrefWithRedirect} passHref legacyBehavior>
-          <Button variant="contained" sx={{ width: CTA_BUTTON_WIDTH }}>
-            Create new Safe Account
-          </Button>
-        </Link>
+        <Button style={{ width: CTA_BUTTON_WIDTH }} render={<Link href={createSafeHrefWithRedirect} />}>
+          Create new Safe account
+        </Button>
       )
       break
     default:
       button = (
-        <Button onClick={onConnectWallet} variant="contained" sx={{ width: CTA_BUTTON_WIDTH }}>
+        <Button onClick={onConnectWallet} style={{ width: CTA_BUTTON_WIDTH }}>
           Connect wallet
         </Button>
       )
@@ -93,71 +93,46 @@ const AppActions = ({ wallet, onConnectWallet, chain, appUrl, app }: Props): Rea
   let body: React.ReactNode
   if (hasWallet && hasSafes) {
     body = (
-      <FormControl>
-        <InputLabel id="safe-select-label">Select a Safe Account</InputLabel>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="safe-select-label">Select a Safe account</Label>
         <Select
-          labelId="safe-select-label"
           value={safeToUse?.address || ''}
-          onChange={(e) => {
-            const safeToUse = compatibleSafes.find(({ address }) => address === e.target.value)
+          onValueChange={(value) => {
+            const safeToUse = compatibleSafes.find(({ address }) => address === value)
             setSafeToUse(safeToUse)
           }}
-          autoWidth
-          label="Select a Safe Account"
-          sx={({ spacing }) => ({
-            width: '311px',
-            minHeight: '56px',
-            '.MuiSelect-select': { padding: `${spacing(1)} ${spacing(2)}` },
-          })}
         >
-          {compatibleSafes.map(({ address, chainId, shortName }) => (
-            <MenuItem key={`${chainId}:${address}`} value={address}>
-              <Grid
-                container
-                sx={{
-                  alignItems: 'center',
-                  gap: 1,
-                }}
-              >
-                <SafeIcon address={address} />
+          <SelectTrigger id="safe-select-label" className="min-h-[56px] w-[311px]">
+            <SelectValue placeholder="Select a Safe account" />
+          </SelectTrigger>
+          <SelectContent>
+            {compatibleSafes.map(({ address, chainId, shortName }) => (
+              <SelectItem key={`${chainId}:${address}`} value={address}>
+                <div className="flex items-center gap-2">
+                  <SafeIcon address={address} />
 
-                <Grid item xs>
-                  <Typography variant="body2">{addressBook?.[chainId]?.[address]}</Typography>
+                  <div className="flex-1">
+                    <Typography variant="paragraph-small">{addressBook?.[chainId]?.[address]}</Typography>
 
-                  <EthHashInfo address={address} showAvatar={false} showName={false} prefix={shortName} />
-                </Grid>
-              </Grid>
-            </MenuItem>
-          ))}
+                    <EthHashInfo address={address} showAvatar={false} showName={false} prefix={shortName} />
+                  </div>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
-      </FormControl>
+      </div>
     )
   } else {
     body = <CreateNewSafeSVG alt="An icon of a physical safe with a plus sign" />
   }
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        fontWeight: 700,
-        height: CTA_HEIGHT,
-      }}
-    >
-      <Typography
-        variant="h5"
-        sx={{
-          fontWeight: 700,
-        }}
-      >
-        Use the App with your Safe Account
-      </Typography>
+    <div className="flex flex-col items-center justify-between font-bold" style={{ height: CTA_HEIGHT }}>
+      <Typography variant="paragraph-bold">Use the App with your Safe account</Typography>
       {body}
       {button}
-    </Box>
+    </div>
   )
 }
 

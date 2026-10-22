@@ -1,20 +1,20 @@
 import type { ModuleTransaction, MultisigTransaction } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
-import TxProposalChip from '@/features/proposers/components/TxProposalChip'
+import { TxProposalChip } from '@/features/proposers'
 import { SwapFeature, useIsExpiredSwap } from '@/features/swap'
-import { Box, Typography } from '@mui/material'
+import { Typography } from '@safe-global/views/components/ui/typography'
 import type { ReactElement } from 'react'
 
 import css from './styles.module.css'
 import DateTime from '@/components/common/DateTime'
 import TxInfo from '@/components/transactions/TxInfo'
 import { isMultisigExecutionInfo, isTxQueued } from '@/utils/transaction-guards'
-import TxType from '@/components/transactions/TxType'
+import { TxTypeIcon, TxTypeText } from '@/components/transactions/TxType'
 import classNames from 'classnames'
 import { isImitation, isTrustedTx } from '@/utils/transactions'
-import MaliciousTxWarning from '../MaliciousTxWarning'
+import MaliciousTxWarning from '@safe-global/views/components/transactions/MaliciousTxWarning'
 import QueueActions from './QueueActions'
 import useIsPending from '@/hooks/useIsPending'
-import TxConfirmations from '../TxConfirmations'
+import TxConfirmations from '@safe-global/views/components/transactions/TxConfirmations'
 import { useHasFeature } from '@/hooks/useChains'
 import TxStatusLabel from '@/components/transactions/TxStatusLabel'
 import { FEATURES } from '@safe-global/utils/utils/chains'
@@ -44,6 +44,7 @@ const TxSummary = ({ item, isConflictGroup, isBulkGroup }: TxSummaryProps): Reac
   const nonce = isMultisigExecutionInfo(tx.executionInfo) ? tx.executionInfo.nonce : undefined
   const isTrusted = !hasDefaultTokenlist || isTrustedTx(tx)
   const isImitationTransaction = isImitation(tx)
+  const showWarning = isImitationTransaction || !isTrusted
   const isPending = useIsPending(tx.id)
   const executionInfo = isMultisigExecutionInfo(tx.executionInfo) ? tx.executionInfo : undefined
   const expiredSwap = useIsExpiredSwap(tx.txInfo)
@@ -55,49 +56,63 @@ const TxSummary = ({ item, isConflictGroup, isBulkGroup }: TxSummaryProps): Reac
   const showAssessment = useShowHypernativeAssessment() && isQueue
 
   return (
-    <Box
+    <div
       data-testid="transaction-item"
       className={classNames(css.gridContainer, {
+        // Top-level queue rows carry the most cells, so they get their own narrow-width template.
+        [css.queue]: isQueue && !isConflictGroup && !isBulkGroup,
         [css.history]: !isQueue,
         [css.conflictGroup]: isConflictGroup,
         [css.bulkGroup]: isBulkGroup,
-        [css.untrusted]: !isTrusted || isImitationTransaction,
+        [css.untrusted]: showWarning,
         [css.withAssessment]: showAssessment,
       })}
       id={tx.id}
     >
-      {nonce !== undefined && !isConflictGroup && !isBulkGroup && (
-        <Box data-testid="nonce" className={css.nonce} gridArea="nonce">
+      {/* The warning claims the same cell, so the nonce yields to it rather than stacking underneath. */}
+      {nonce !== undefined && !isConflictGroup && !showWarning && (
+        <div data-testid="nonce" className={css.nonce} style={{ gridArea: 'nonce' }}>
           {nonce}
-        </Box>
+        </div>
       )}
 
-      {(isImitationTransaction || !isTrusted) && (
-        <Box data-testid="warning" gridArea="nonce">
+      {showWarning && (
+        <div data-testid="warning" style={{ gridArea: 'nonce' }}>
           <MaliciousTxWarning withTooltip={!isImitationTransaction} />
-        </Box>
+        </div>
       )}
 
-      <Box data-testid="tx-type" gridArea="type">
-        <TxType tx={tx} />
+      <div data-testid="tx-type" className={css.type} style={{ gridArea: 'type' }}>
+        {/* Composed from TxType's icon and text rather than the combined export, so this file owns the
+            label's class and can drop it on phones while keeping the icon. */}
+        <div className={css.typeRow}>
+          <TxTypeIcon tx={tx} />
+          <span className={css.typeLabel}>
+            <TxTypeText tx={tx} />
+          </span>
+        </div>
 
         {tx.note && (
-          <Typography variant="body2" component="span" color="text.secondary" title={tx.note}>
+          <Typography
+            variant="paragraph-small"
+            className={classNames('text-[var(--color-text-secondary)]', css.note)}
+            title={tx.note}
+          >
             {ellipsis(tx.note, 25)}
           </Typography>
         )}
-      </Box>
+      </div>
 
-      <Box data-testid="tx-info" gridArea="info">
+      <div data-testid="tx-info" className={css.info} style={{ gridArea: 'info' }}>
         <TxInfo info={tx.txInfo} />
-      </Box>
+      </div>
 
-      <Box data-testid="tx-date" className={css.date} gridArea="date">
+      <div data-testid="tx-date" className={css.date} style={{ gridArea: 'date' }}>
         <DateTime value={tx.timestamp} />
-      </Box>
+      </div>
 
       {isQueue && executionInfo && (
-        <Box gridArea="confirmations">
+        <div style={{ gridArea: 'confirmations' }}>
           {executionInfo.confirmationsSubmitted > 0 || isPending ? (
             <TxConfirmations
               submittedConfirmations={executionInfo.confirmationsSubmitted}
@@ -106,27 +121,35 @@ const TxSummary = ({ item, isConflictGroup, isBulkGroup }: TxSummaryProps): Reac
           ) : (
             <TxProposalChip />
           )}
-        </Box>
+        </div>
       )}
 
       {showAssessment && safeTxHash && (
-        <Box gridArea="assessment" className={css.assessment}>
+        <div style={{ gridArea: 'assessment' }} className={css.assessment}>
           <HnQueueAssessment safeTxHash={safeTxHash} assessment={assessment} isAuthenticated={isAuthenticated} />
-        </Box>
+        </div>
       )}
 
-      {(!isQueue || expiredSwap || isPending) && (
-        <Box className={css.status} gridArea="status">
-          {isQueue && expiredSwap ? <StatusLabel status="expired" /> : <TxStatusLabel tx={tx} />}
-        </Box>
+      {!isQueue && (
+        <div className={css.status} style={{ gridArea: 'status' }}>
+          <TxStatusLabel tx={tx} />
+        </div>
       )}
 
-      {isQueue && !expiredSwap && (
-        <Box gridArea="actions">
-          <QueueActions tx={tx} />
-        </Box>
+      {/* A queue row's status takes the action's cell, so pending rows keep the same tracks as the rest. */}
+      {isQueue && (
+        <div className={css.actions} style={{ gridArea: 'actions' }}>
+          {expiredSwap ? (
+            <StatusLabel status="expired" />
+          ) : (
+            <>
+              {isPending && <TxStatusLabel tx={tx} />}
+              <QueueActions tx={tx} />
+            </>
+          )}
+        </div>
       )}
-    </Box>
+    </div>
   )
 }
 

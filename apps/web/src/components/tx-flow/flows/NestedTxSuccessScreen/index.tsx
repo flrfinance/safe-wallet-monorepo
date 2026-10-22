@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Box, Container, Paper, Stack, SvgIcon, Typography } from '@mui/material'
 import { PendingStatus, selectPendingTxById } from '@/store/pendingTxsSlice'
 import EthHashInfo from '@/components/common/EthHashInfo'
 import ErrorMessage from '@/components/tx/ErrorMessage'
@@ -11,18 +10,20 @@ import css from './styles.module.css'
 import Link from 'next/link'
 import { AppRoutes } from '@/config/routes'
 import { useAppSelector } from '@/store'
-import ExternalLink from '@/components/common/ExternalLink'
+import ExternalLink from '@safe-global/views/components/common/ExternalLink'
 import { MODALS_EVENTS } from '@/services/analytics'
 import Track from '@/components/common/Track'
-import useAsync from '@safe-global/utils/hooks/useAsync'
-import { getSafeTransaction } from '@/utils/transactions'
-import { isMultisigDetailedExecutionInfo } from '@/utils/transaction-guards'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { useUrlSpaceId, withSpaceId } from '@/hooks/useUrlSpaceId'
+import { useCurrentChain } from '@/hooks/useChains'
+import { getExplorerLink } from '@safe-global/utils/utils/gateway'
 
 type Props = {
   txId: string
 }
 const NestedTxSuccessScreen = ({ txId }: Props) => {
   const addressBook = useAddressBook()
+  const spaceId = useUrlSpaceId()
 
   // _pendingTx eventually clears from the store, so we need to cache it
   const _pendingTx = useAppSelector((state) => (txId ? selectPendingTxById(state, txId) : undefined))
@@ -33,20 +34,14 @@ const NestedTxSuccessScreen = ({ txId }: Props) => {
     }
   }, [_pendingTx])
 
-  const [safeTx] = useAsync(() => {
-    if (cachedPendingTx?.status == PendingStatus.NESTED_SIGNING) {
-      return getSafeTransaction(
-        cachedPendingTx.txHashOrParentSafeTxHash,
-        cachedPendingTx.chainId,
-        cachedPendingTx.signerAddress,
-      )
-    }
-  }, [cachedPendingTx])
-  const isSafeTxHash =
-    cachedPendingTx?.status == PendingStatus.NESTED_SIGNING &&
-    !!safeTx &&
-    isMultisigDetailedExecutionInfo(safeTx.detailedExecutionInfo) &&
-    safeTx.detailedExecutionInfo.safeTxHash === cachedPendingTx.txHashOrParentSafeTxHash
+  const chain = useCurrentChain()
+
+  // Executed → on-chain tx hash; queued → the parent's safeTxHash
+  const isExecuted = cachedPendingTx?.status === PendingStatus.NESTED_SIGNING && cachedPendingTx.executed
+  const explorerLink =
+    isExecuted && chain
+      ? getExplorerLink(cachedPendingTx.txHashOrParentSafeTxHash, chain.blockExplorerUriTemplate)
+      : undefined
 
   if (cachedPendingTx?.status !== PendingStatus.NESTED_SIGNING) {
     return <ErrorMessage>No transaction data found</ErrorMessage>
@@ -54,87 +49,74 @@ const NestedTxSuccessScreen = ({ txId }: Props) => {
 
   const currentSafeAddress = addressBook[cachedPendingTx.safeAddress]
   const parentSafeAddress = addressBook[cachedPendingTx.signerAddress]
+  const isExecTransaction = cachedPendingTx.method === 'execTransaction'
 
   return (
-    <Container
-      component={Paper}
-      disableGutters
-      sx={{
-        textAlign: 'center',
-        maxWidth: `${900 - 75}px`, // md={11}
-      }}
-      maxWidth={false}
-    >
-      <Box padding={3} mt={3} display="flex" flexDirection="column" alignItems="center" gap={2}>
-        <Box className={css.icon}>
-          <SvgIcon component={NestedSafeIcon} inheritViewBox fontSize="large" alt="Nested Safe" />
-        </Box>
-        <Typography data-testid="transaction-status" variant="h6" marginTop={2} fontWeight={700}>
-          A nested transaction was created
+    <div className="mx-auto w-full max-w-[825px] rounded-lg bg-[var(--color-background-paper)] text-center">
+      <div className="mt-6 flex flex-col items-center gap-4 p-6">
+        <div className={css.icon}>
+          <NestedSafeIcon className="size-9" aria-label="Nested Safe" />
+        </div>
+        <Typography data-testid="transaction-status" variant="h4" className="mt-4">
+          {isExecuted ? 'Transaction submitted' : 'One more step in the parent Safe'}
         </Typography>
-        <Typography variant="body2" mb={3}>
-          Once confirmed and executed this signer transaction will confirm the child Safe&apos;s transaction.
+        <Typography variant="paragraph-small" className="mb-6 block">
+          {isExecuted
+            ? 'The parent Safe executed this transaction on-chain.'
+            : isExecTransaction
+              ? "Executing as the parent Safe created a transaction inside it. The parent Safe's owners still need to confirm and execute that transaction before this Safe's transaction runs."
+              : "Signing as the parent Safe created an approval transaction inside it. The parent Safe's owners still need to confirm and execute that transaction before it signs this Safe's transaction."}
         </Typography>
-        <Stack spacing={2} width="70%">
-          <Box display="flex" flexDirection="column" alignItems="start" gap={1}>
-            <Typography variant="body2" color="text.secondary">
+        <div className="flex w-[70%] flex-col gap-4">
+          <div className="flex flex-col items-start gap-2">
+            <Typography variant="paragraph-small" className="text-[var(--color-text-secondary)]">
               Parent Safe
             </Typography>
             <EthHashInfo address={cachedPendingTx.signerAddress} name={parentSafeAddress} shortAddress={false} />
-          </Box>
-          <Stack direction="row" spacing={2} alignItems="center" pl={1}>
-            <SvgIcon component={ArrowDownIcon} fontSize="medium" color="border" inheritViewBox />
+          </div>
+          <div className="flex flex-row items-center gap-4 pl-2">
+            <ArrowDownIcon className="size-6 text-[var(--color-border-main)]" />
             <Typography
-              component="code"
-              variant="body2"
-              color="primary.light"
-              sx={{
-                backgroundColor: 'background.main',
-                px: 1,
-                py: 0.5,
-                borderRadius: 0.5,
-                fontFamily: 'monospace',
-                whiteSpace: 'nowrap',
-              }}
+              variant="code"
+              className="rounded-sm bg-[var(--color-background-main)] px-2 py-0.5 font-mono whitespace-nowrap text-[var(--color-primary-light)]"
             >
-              approveHash
+              {cachedPendingTx.method}
             </Typography>
-          </Stack>
-          <Box display="flex" flexDirection="column" alignItems="start" gap={1}>
-            <Typography variant="body2" color="text.secondary">
+          </div>
+          <div className="flex flex-col items-start gap-2">
+            <Typography variant="paragraph-small" className="text-[var(--color-text-secondary)]">
               Current Safe
             </Typography>
             <EthHashInfo address={cachedPendingTx.safeAddress} name={currentSafeAddress} shortAddress={false} />
-          </Box>
-        </Stack>
+          </div>
+        </div>
         <Track {...MODALS_EVENTS.OPEN_PARENT_TX}>
-          <Link
-            href={
-              isSafeTxHash
-                ? {
-                    pathname: AppRoutes.transactions.tx,
-                    query: {
-                      safe: cachedPendingTx.signerAddress,
-                      chainId: cachedPendingTx.chainId,
-                      id: cachedPendingTx.txHashOrParentSafeTxHash,
-                    },
-                  }
-                : {
-                    pathname: AppRoutes.transactions.queue,
-                    query: {
-                      safe: cachedPendingTx.signerAddress,
-                      chainId: cachedPendingTx.chainId,
-                    },
-                  }
-            }
-            passHref
-            legacyBehavior
-          >
-            <ExternalLink mode="button">Open the transaction</ExternalLink>
-          </Link>
+          {explorerLink ? (
+            <ExternalLink href={explorerLink.href} mode="button">
+              Open the transaction
+            </ExternalLink>
+          ) : (
+            <Link
+              href={{
+                pathname: AppRoutes.transactions.tx,
+                query: withSpaceId(
+                  {
+                    safe: cachedPendingTx.signerAddress,
+                    chainId: cachedPendingTx.chainId,
+                    id: cachedPendingTx.txHashOrParentSafeTxHash,
+                  },
+                  spaceId,
+                ),
+              }}
+              passHref
+              legacyBehavior
+            >
+              <ExternalLink mode="button">Open the transaction</ExternalLink>
+            </Link>
+          )}
         </Track>
-      </Box>
-    </Container>
+      </div>
+    </div>
   )
 }
 

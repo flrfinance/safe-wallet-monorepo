@@ -1,9 +1,7 @@
-import { Card, IconButton } from '@mui/material'
-import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeftRounded'
-import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRightRounded'
+import { Button } from '@safe-global/views/components/ui/button'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/router'
 import type { UrlObject } from 'url'
 import { AppRoutes } from '@/config/routes'
 import { useTxBuilderApp } from '@/hooks/safe-apps/useTxBuilderApp'
@@ -15,6 +13,7 @@ import { useHasFeature } from '@/hooks/useChains'
 import { FEATURES } from '@safe-global/utils/utils/chains'
 import { EURCV_ASSET_ID } from '@/config/eurcv'
 import css from './styles.module.css'
+import { useSafeLinkQuery, type SafeLinkQuery } from '@/hooks/useSafeLinkQuery'
 
 export type ExplorePossibleApp = {
   id: string
@@ -35,21 +34,18 @@ const EXPLORE_POSSIBLE_CONFIG = [
       light: '/images/explore-possible/earn-large.svg',
       dark: '/images/explore-possible/earn-large-dark.svg',
     },
-    getLink: (safeQuery: string | string[] | undefined) => ({
+    getLink: (linkQuery: SafeLinkQuery) => ({
       pathname: AppRoutes.earn,
-      query: {
-        safe: safeQuery,
-        asset_id: EURCV_ASSET_ID,
-      },
+      query: { ...linkQuery, asset_id: EURCV_ASSET_ID },
     }),
   },
   {
     id: 'swap',
     title: 'Swap tokens instantly',
     iconUrl: { light: '/images/explore-possible/swap-large.svg', dark: '/images/explore-possible/swap-large-dark.svg' },
-    getLink: (safeQuery: string | string[] | undefined) => ({
+    getLink: (linkQuery: SafeLinkQuery) => ({
       pathname: AppRoutes.swap,
-      query: { safe: safeQuery },
+      query: linkQuery,
     }),
   },
   {
@@ -68,10 +64,10 @@ const EXPLORE_POSSIBLE_CONFIG = [
       light: '/images/explore-possible/tx-builder-large.svg',
       dark: '/images/explore-possible/tx-builder-large-dark.svg',
     },
-    getLink: (safeQuery: string | string[] | undefined, txBuilderLink?: string | UrlObject) =>
+    getLink: (linkQuery: SafeLinkQuery, txBuilderLink?: string | UrlObject) =>
       txBuilderLink || {
         pathname: AppRoutes.apps.index,
-        query: { safe: safeQuery },
+        query: linkQuery,
       },
   },
   {
@@ -81,15 +77,15 @@ const EXPLORE_POSSIBLE_CONFIG = [
       light: '/images/explore-possible/apps-large.svg',
       dark: '/images/explore-possible/apps-large-dark.svg',
     },
-    getLink: (safeQuery: string | string[] | undefined) => ({
+    getLink: (linkQuery: SafeLinkQuery) => ({
       pathname: AppRoutes.apps.index,
-      query: { safe: safeQuery },
+      query: linkQuery,
     }),
   },
 ] as const
 
 const ExplorePossibleWidget = () => {
-  const router = useRouter()
+  const safeLinkQuery = useSafeLinkQuery()
   const txBuilderApp = useTxBuilderApp()
   const isDarkMode = useDarkMode()
   const isSwapEnabled = useHasFeature(FEATURES.NATIVE_SWAPS)
@@ -117,9 +113,9 @@ const ExplorePossibleWidget = () => {
         subtitle: 'subtitle' in config ? config.subtitle : undefined,
         badge: 'badge' in config ? config.badge : undefined,
         iconUrl: isDarkMode ? config.iconUrl.dark : config.iconUrl.light,
-        link: config.getLink(router.query.safe, txBuilderApp.link),
+        link: config.getLink(safeLinkQuery, txBuilderApp.link),
       })),
-    [router.query.safe, txBuilderApp, isDarkMode, isSwapEnabled, isEurcvBoostEnabled],
+    [safeLinkQuery, txBuilderApp, isDarkMode, isSwapEnabled, isEurcvBoostEnabled],
   )
 
   const updateScrollState = () => {
@@ -179,7 +175,7 @@ const ExplorePossibleWidget = () => {
   }
 
   return (
-    <Card sx={{ px: 3, pt: 2.5, pb: 1.5 }} component="section">
+    <section className="overflow-hidden rounded-xl bg-[var(--color-background-paper)] px-6 pb-3 pt-5">
       <div style={{ position: 'relative' }}>
         {/* Gradient fade on the right */}
         <div
@@ -195,22 +191,24 @@ const ExplorePossibleWidget = () => {
           <h2 className={css.headerTitle}>Explore what&apos;s possible</h2>
           {(canScrollLeft || canScrollRight) && (
             <nav className={css.carouselNav} aria-label="Carousel navigation">
-              <IconButton
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 aria-label="Scroll to previous apps"
                 onClick={() => scrollList('left')}
                 disabled={!canScrollLeft}
-                size="small"
               >
-                <KeyboardArrowLeftIcon fontSize="small" />
-              </IconButton>
-              <IconButton
+                <ChevronLeft className="size-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 aria-label="Scroll to next apps"
                 onClick={() => scrollList('right')}
                 disabled={!canScrollRight}
-                size="small"
               >
-                <KeyboardArrowRightIcon fontSize="small" />
-              </IconButton>
+                <ChevronRight className="size-5" />
+              </Button>
             </nav>
           )}
         </div>
@@ -252,7 +250,7 @@ const ExplorePossibleWidget = () => {
           ))}
         </ul>
       </div>
-    </Card>
+    </section>
   )
 }
 

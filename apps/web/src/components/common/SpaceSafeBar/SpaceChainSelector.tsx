@@ -1,15 +1,15 @@
-import { useContext, useState, useCallback } from 'react'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import ChainSelectorBlock from '@/features/spaces/components/SafeSelectorDropdown/components/ChainSelectorBlock'
+import { useEffect, useState, useCallback } from 'react'
+import { Skeleton } from '@safe-global/views/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@safe-global/views/components/ui/tooltip'
+import { ChainSelectorBlock } from '@/features/spaces'
 import { CreateSafeOnNewChain } from '@/features/multichain'
-import { TxModalContext } from '@/components/tx-flow'
 import { useSpaceChainSelector } from './hooks/useSpaceChainSelector'
+import { useIsSafeBarControlDisabled } from '@/hooks/useIsSafeBarControlDisabled'
 import { OVERVIEW_EVENTS, trackEvent } from '@/services/analytics'
 
 function SpaceChainSelectorSkeleton() {
   return (
-    <div className="self-stretch sm:order-last flex items-center rounded-lg bg-card shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] px-4">
+    <div className="self-stretch min-h-10 order-last flex items-center rounded-lg bg-muted px-4">
       <Skeleton className="size-6 rounded-full" />
     </div>
   )
@@ -18,10 +18,14 @@ function SpaceChainSelectorSkeleton() {
 function SpaceChainSelector({ isLoading }: { isLoading?: boolean }) {
   const { deployedChains, selectedChainId, deployedChainIds, safeAddress, safeName, handleChainChange } =
     useSpaceChainSelector()
-  const { txFlow } = useContext(TxModalContext)
-  const isDisabled = !!txFlow
+  const isDisabled = useIsSafeBarControlDisabled()
 
   const [addNetworkChainId, setAddNetworkChainId] = useState<string>()
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   const handleAddNetwork = useCallback((chainId: string) => {
     setAddNetworkChainId(chainId)
@@ -40,14 +44,17 @@ function SpaceChainSelector({ isLoading }: { isLoading?: boolean }) {
     setAddNetworkChainId(undefined)
   }, [])
 
+  if (!isHydrated) return <SpaceChainSelectorSkeleton />
+
   if (!deployedChains.length) {
     if (isLoading) return <SpaceChainSelectorSkeleton />
     return null
   }
 
   return (
+    // min-h-10 matches the safe selector's own `h-10` — see SpaceNestedSafesButton.
     <div
-      className="self-stretch sm:order-last flex items-stretch shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] rounded-lg bg-card"
+      className="self-stretch min-h-10 order-last flex items-stretch rounded-lg bg-muted"
       data-testid="space-chain-selector"
     >
       {isDisabled ? (

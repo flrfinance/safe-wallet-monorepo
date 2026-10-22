@@ -5,11 +5,11 @@ import { type SafeState, cgwApi as safesApi } from '@safe-global/store/gateway/A
 import { cgwApi as relayApi } from '@safe-global/store/gateway/AUTO_GENERATED/relay'
 import { type Chain } from '@safe-global/store/gateway/AUTO_GENERATED/chains'
 import { getStoreInstance } from '@/store'
-import { getReadOnlyProxyFactoryContract } from '@/services/contracts/safeContracts'
 import type { UrlObject } from 'url'
 import { AppRoutes } from '@/config/routes'
+import { withSpaceId, withSpaceIdInUrl } from '@/hooks/useUrlSpaceId'
 import { SAFE_APPS_EVENTS, trackEvent } from '@/services/analytics'
-import Safe, { predictSafeAddress, SafeProvider } from '@safe-global/protocol-kit'
+import Safe from '@safe-global/protocol-kit'
 import type { PredictedSafeProps } from '@safe-global/protocol-kit'
 
 import { backOff } from 'exponential-backoff'
@@ -26,7 +26,11 @@ import {
 import { ECOSYSTEM_ID_ADDRESS } from '@/config/constants'
 import type { ReplayedSafeProps, UndeployedSafeProps } from '@safe-global/utils/features/counterfactual/store/types'
 import { isPredictedSafeProps } from '@/features/counterfactual/services'
-import { getSafeContractDeployment, getChainAgnosticAddress } from '@safe-global/utils/services/contracts/deployments'
+import {
+  getSafeContractDeployment,
+  getChainAgnosticAddress,
+  getSafeToL2SetupVersion,
+} from '@safe-global/utils/services/contracts/deployments'
 import {
   Safe__factory,
   Safe_proxy_factory__factory,
@@ -34,7 +38,6 @@ import {
 } from '@safe-global/utils/types/contracts'
 import { createWeb3 } from '@/hooks/wallets/web3'
 import { hasMultiChainCreationFeatures } from '@/features/multichain'
-import { getLatestSafeVersion } from '@safe-global/utils/utils/chains'
 
 // Type for the lazy-loaded activateReplayedSafe function
 export type ActivateReplayedSafeFn = (
@@ -89,24 +92,6 @@ export const createNewSafe = async (
   callback(txResponse.hash)
 }
 
-/**
- * Compute the new counterfactual Safe address before it is actually created
- */
-export const computeNewSafeAddress = async (
-  provider: Eip1193Provider | string,
-  props: PredictedSafeProps,
-  chain: Chain,
-): Promise<string> => {
-  const safeProvider = new SafeProvider({ provider })
-
-  return predictSafeAddress({
-    safeProvider,
-    chainId: BigInt(chain.chainId),
-    safeAccountConfig: props.safeAccountConfig,
-    safeDeploymentConfig: props.safeDeploymentConfig,
-  })
-}
-
 export const encodeSafeSetupCall = (safeAccountConfig: ReplayedSafeProps['safeAccountConfig']) => {
   return Safe__factory.createInterface().encodeFunctionData('setup', [
     safeAccountConfig.owners,
@@ -139,14 +124,17 @@ export const estimateSafeCreationGas = async (
   provider: Provider,
   from: string,
   undeployedSafe: UndeployedSafeProps,
-  safeVersion?: SafeVersion,
 ): Promise<bigint> => {
-  const readOnlyProxyFactoryContract = await getReadOnlyProxyFactoryContract(safeVersion ?? getLatestSafeVersion(chain))
-  const encodedSafeCreationTx = encodeSafeCreationTx(undeployedSafe, chain)
+  // Estimate against the factory the creation will actually be sent to (see
+  // activateReplayedSafe/relaySafeCreation) — a version-derived factory can differ
+  // from the replayed creation's factory and deploys different proxy bytecode,
+  // underestimating the gas and making the real transaction run out of gas.
+  const replayedSafeProps = assertNewUndeployedSafeProps(undeployedSafe, chain)
+  const encodedSafeCreationTx = encodeSafeCreationTx(replayedSafeProps, chain)
 
   const gas = await provider.estimateGas({
     from,
-    to: readOnlyProxyFactoryContract.getAddress(),
+    to: replayedSafeProps.factoryAddress,
     data: encodedSafeCreationTx,
   })
 
@@ -191,9 +179,11 @@ export const pollSafeInfo = async (chainId: string, safeAddress: string): Promis
   )
 }
 
+/** The page after a Safe is deployed, in the Workspace `spaceId` (null: outside any Workspace). */
 export const getRedirect = (
   chainPrefix: string,
   safeAddress: string,
+  spaceId: string | null,
   redirectQuery?: string | string[],
 ): UrlObject | string => {
   const redirectUrl = Array.isArray(redirectQuery) ? redirectQuery[0] : redirectQuery
@@ -204,7 +194,7 @@ export const getRedirect = (
 
   // Go to the dashboard if no specific redirect is provided
   if (!redirectUrl || !redirectUrl.startsWith(AppRoutes.apps.index)) {
-    return { pathname: AppRoutes.home, query: { safe: address } }
+    return { pathname: AppRoutes.home, query: withSpaceId({ safe: address }, spaceId) }
   }
 
   // Otherwise, redirect to the provided URL (e.g. from a Safe App)
@@ -217,7 +207,7 @@ export const getRedirect = (
   // TODO: Check if we can accomplish this with URLSearchParams or URL instead
   const hasQueryParams = redirectUrl.includes('?')
   const appendChar = hasQueryParams ? '&' : '?'
-  return redirectUrl + `${appendChar}safe=${address}`
+  return withSpaceIdInUrl(redirectUrl + `${appendChar}safe=${address}`, spaceId)
 }
 
 export const relaySafeCreation = async (chain: Chain, undeployedSafeProps: UndeployedSafeProps) => {
@@ -274,7 +264,7 @@ export const createNewUndeployedSafeWithoutSalt = (
     throw new Error('No Safe deployment found')
   }
 
-  const safeToL2SetupDeployments = getSafeToL2SetupDeployments({ version: '1.4.1' })
+  const safeToL2SetupDeployments = getSafeToL2SetupDeployments({ version: getSafeToL2SetupVersion(safeVersion) })
   const safeToL2SetupAddress = getChainAgnosticAddress(safeToL2SetupDeployments, chain.chainId, deploymentType)
   const safeToL2SetupInterface = Safe_to_l2_setup__factory.createInterface()
 

@@ -70,12 +70,42 @@ describe('TxSummary', () => {
     expect(queryByText('7')).not.toBeInTheDocument()
   })
 
-  it('should not display a nonce for items in bulk execution group', () => {
-    const { queryByText } = render(
+  it('should display a nonce for items in a bulk execution group', () => {
+    const { getByTestId } = render(<TxSummary item={mockTransaction} isBulkGroup={true} isConflictGroup={false} />)
+
+    expect(getByTestId('nonce')).toHaveTextContent('7')
+  })
+
+  it('should not display a nonce for items in a bulk execution group without executionInfo', () => {
+    const { queryByTestId } = render(
       <TxSummary item={mockTransactionWithoutExecutionInfo} isBulkGroup={true} isConflictGroup={false} />,
     )
 
-    expect(queryByText('7')).not.toBeInTheDocument()
+    expect(queryByTestId('nonce')).not.toBeInTheDocument()
+  })
+
+  it('should show the imitation warning instead of the nonce, not on top of it', () => {
+    const imitationTx = {
+      ...mockTransaction,
+      transaction: {
+        ...mockTransaction.transaction,
+        txInfo: {
+          type: TransactionInfoType.TRANSFER,
+          direction: TransferDirection.INCOMING,
+          transferInfo: {
+            type: TransactionTokenType.ERC20,
+            value: '1000000',
+            trusted: false,
+            imitation: true,
+          },
+        },
+      } as unknown as Transaction,
+    }
+
+    const { getByTestId, queryByTestId } = render(<TxSummary item={imitationTx} isConflictGroup={false} />)
+
+    expect(getByTestId('warning')).toBeInTheDocument()
+    expect(queryByTestId('nonce')).not.toBeInTheDocument()
   })
 
   it('should display confirmations if transactions is in queue', () => {
@@ -114,6 +144,19 @@ describe('TxSummary', () => {
     const { getByTestId } = render(<TxSummary item={mockTransactionInHistory} isConflictGroup={false} />)
 
     expect(getByTestId('tx-status-label')).toBeInTheDocument()
+  })
+
+  it('should place a pending status in the same grid cell as the queue action', () => {
+    jest.spyOn(pending, 'default').mockReturnValue(false)
+    const { getByText, unmount } = render(<TxSummary item={mockTransaction} isConflictGroup={false} />)
+    const actionCell = getByText('Confirm').closest<HTMLElement>('[style*="grid-area"]')
+    expect(actionCell?.style.gridArea).toBe('actions')
+    unmount()
+
+    jest.spyOn(pending, 'default').mockReturnValue(true)
+    const { getByTestId } = render(<TxSummary item={mockTransaction} isConflictGroup={false} />)
+    const statusCell = getByTestId('tx-status-label').closest<HTMLElement>('[style*="grid-area"]')
+    expect(statusCell?.style.gridArea).toBe('actions')
   })
 
   it('should not display a status label if transaction is in queue and not pending', () => {

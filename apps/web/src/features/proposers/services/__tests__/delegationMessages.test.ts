@@ -1,27 +1,24 @@
 import { buildDelegationOrigin, createDelegationMessage, confirmDelegationMessage } from '../delegationMessages'
-import type { TypedData, MessageItem } from '@safe-global/store/gateway/AUTO_GENERATED/messages'
+import type { MessageItem } from '@safe-global/store/gateway/AUTO_GENERATED/messages'
 import { faker } from '@faker-js/faker'
 import { checksumAddress } from '@safe-global/utils/utils/addresses'
+import { getDelegateTypedData } from '@safe-global/utils/services/delegates'
+import { cgwApi } from '@safe-global/store/gateway/AUTO_GENERATED/messages'
+import { FEATURES } from '@safe-global/utils/utils/chains'
+import { chainBuilder } from '@/tests/builders/chains'
 import type { AppDispatch } from '@/store'
 
 describe('delegationMessages', () => {
-  const chainId = '1'
+  const chainId = faker.string.numeric()
   const parentSafeAddress = checksumAddress(faker.finance.ethereumAddress())
   const delegateAddress = checksumAddress(faker.finance.ethereumAddress())
   const nestedSafeAddress = checksumAddress(faker.finance.ethereumAddress())
   const signature = `0x${faker.string.hexadecimal({ length: 130 })}`
   const messageHash = `0x${faker.string.hexadecimal({ length: 64 })}`
 
-  const createTypedData = (delegate: string = delegateAddress): TypedData => ({
-    domain: { chainId: Number(chainId) },
-    types: { Delegate: [{ name: 'delegateAddress', type: 'address' }] },
-    primaryType: 'Delegate',
-    message: { delegateAddress: delegate },
-  })
-
   describe('buildDelegationOrigin', () => {
     it('should build correct JSON string for add action', () => {
-      const result = buildDelegationOrigin('add', delegateAddress, nestedSafeAddress, 'Test Label')
+      const result = buildDelegationOrigin('add', delegateAddress, nestedSafeAddress)
 
       const parsed = JSON.parse(result)
       expect(parsed).toEqual({
@@ -29,12 +26,11 @@ describe('delegationMessages', () => {
         action: 'add',
         delegate: delegateAddress,
         nestedSafe: nestedSafeAddress,
-        label: 'Test Label',
       })
     })
 
     it('should build correct JSON string for remove action', () => {
-      const result = buildDelegationOrigin('remove', delegateAddress, nestedSafeAddress, 'Remove Label')
+      const result = buildDelegationOrigin('remove', delegateAddress, nestedSafeAddress)
 
       const parsed = JSON.parse(result)
       expect(parsed).toEqual({
@@ -42,27 +38,35 @@ describe('delegationMessages', () => {
         action: 'remove',
         delegate: delegateAddress,
         nestedSafe: nestedSafeAddress,
-        label: 'Remove Label',
       })
     })
 
-    it('should include all required fields for proper delegation origin', () => {
-      const result = buildDelegationOrigin('add', delegateAddress, nestedSafeAddress, 'My Label')
+    it('should never carry a proposer name, which must stay on the device', () => {
+      const result = buildDelegationOrigin('add', delegateAddress, nestedSafeAddress)
 
       const parsed = JSON.parse(result)
       expect(parsed.type).toBe('proposer-delegation')
       expect(parsed.action).toBeDefined()
       expect(parsed.delegate).toBeDefined()
       expect(parsed.nestedSafe).toBeDefined()
-      expect(parsed.label).toBeDefined()
+      expect(parsed.label).toBeUndefined()
     })
   })
 
-  describe('createDelegationMessage', () => {
-    const typedData = createTypedData()
-    const origin = buildDelegationOrigin('add', delegateAddress, nestedSafeAddress, 'Test')
+  describe.each([
+    { service: 'queue service', features: [FEATURES.QUEUE_SERVICE], domainName: 'Safe Queue Service' },
+    { service: 'transaction service', features: [], domainName: 'Safe Transaction Service' },
+  ])('createDelegationMessage with $service typed data', ({ features, domainName }) => {
+    const chain = chainBuilder().with({ chainId, features }).build()
+    const typedData = getDelegateTypedData(chain, delegateAddress, nestedSafeAddress)
+    const origin = buildDelegationOrigin('add', delegateAddress, nestedSafeAddress)
+
+    afterEach(() => {
+      jest.restoreAllMocks()
+    })
 
     it('should successfully create message by dispatching correct action', async () => {
+      const initiate = jest.spyOn(cgwApi.endpoints.messagesCreateMessageV1, 'initiate')
       const mockUnwrap = jest.fn().mockResolvedValue({})
       const mockDispatch = jest.fn().mockReturnValue({ unwrap: mockUnwrap })
 
@@ -77,6 +81,18 @@ describe('delegationMessages', () => {
 
       expect(mockDispatch).toHaveBeenCalled()
       expect(mockUnwrap).toHaveBeenCalled()
+
+      const { message } = initiate.mock.calls[0][0].createMessageDto
+      expect(JSON.parse(JSON.stringify(message))).toEqual(message)
+      expect(message).toEqual(
+        expect.objectContaining({
+          domain: expect.objectContaining({ name: domainName, chainId: Number(chainId) }),
+          primaryType: 'Delegate',
+          message: expect.objectContaining({
+            delegateAddress: expect.stringMatching(new RegExp(`^${delegateAddress}$`, 'i')),
+          }),
+        }),
+      )
     })
 
     it('should confirm existing message when 400 "already exists" error with same action', async () => {
@@ -106,6 +122,8 @@ describe('delegationMessages', () => {
           nestedSafe: nestedSafeAddress,
           label: 'Test',
         }),
+        safeAppInfo: null,
+        safeAppId: null,
       }
 
       let callCount = 0
@@ -174,6 +192,8 @@ describe('delegationMessages', () => {
           nestedSafe: nestedSafeAddress,
           label: 'Test',
         }),
+        safeAppInfo: null,
+        safeAppId: null,
       }
 
       let callCount = 0

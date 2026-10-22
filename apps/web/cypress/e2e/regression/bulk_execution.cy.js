@@ -4,11 +4,14 @@ import * as create_tx from '../pages/create_tx.pages.js'
 import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import * as wallet from '../../support/utils/wallet.js'
 import * as data from '../../fixtures/txhistory_data_data.json'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes,
   fundsSafes = []
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
+let signer
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+})
 
 const typeBulkTx = data.type.bulkTransaction
 
@@ -25,9 +28,8 @@ describe('Bulk execution', () => {
   })
 
   it('Verify that Bulk Execution is available for a few fully signed txs located one by one', () => {
-    cy.visit(constants.transactionQueueUrl + fundsSafes.SEP_FUNDS_SAFE_14)
+    wallet.connectSignerViaStorage(signer, constants.transactionQueueUrl + fundsSafes.SEP_FUNDS_SAFE_14)
     main.acceptCookies()
-    wallet.connectSigner(signer)
     create_tx.verifyBulkExecuteBtnIsEnabled(2)
     create_tx.verifyEnabledBulkExecuteBtnTooltip()
   })
@@ -38,8 +40,7 @@ describe('Bulk execution', () => {
     () => {
       const actions = ['1Send', '2removeOwner']
 
-      cy.visit(constants.transactionQueueUrl + fundsSafes.SEP_FUNDS_SAFE_14)
-      wallet.connectSigner(signer)
+      wallet.connectSignerViaStorage(signer, constants.transactionQueueUrl + fundsSafes.SEP_FUNDS_SAFE_14)
       main.acceptCookies()
       create_tx.verifyBulkExecuteBtnIsEnabled(2).click()
       create_tx.verifyBulkConfirmationScreen(2, actions)
@@ -53,8 +54,7 @@ describe('Bulk execution', () => {
       const actions = ['Wrapped Ether', 'addOwnerWithThreshold', 'Sent']
       const tx = '3 transactions'
 
-      cy.visit(constants.transactionsHistoryUrl + fundsSafes.SEP_FUNDS_SAFE_14)
-      wallet.connectSigner(signer)
+      wallet.connectSignerViaStorage(signer, constants.transactionsHistoryUrl + fundsSafes.SEP_FUNDS_SAFE_14)
       main.acceptCookies()
       create_tx.verifyBulkTxHistoryBlock(create_tx.bulkTxs, tx, actions)
     },

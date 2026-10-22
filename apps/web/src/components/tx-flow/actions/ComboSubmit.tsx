@@ -1,13 +1,10 @@
 import { useContext, useMemo } from 'react'
 import { Slot, type SlotComponentProps, SlotName, useSlot, useSlotIds, withSlot } from '../slots'
-import { Box } from '@mui/material'
-import WalletRejectionError from '@/components/tx/shared/errors/WalletRejectionError'
 import ErrorMessage from '@/components/tx/ErrorMessage'
 import { TxFlowContext } from '../TxFlowProvider'
+import SubmitErrors from './SubmitErrors'
 import { useValidateTxData } from '@/hooks/useValidateTxData'
 import useLocalStorage from '@/services/local-storage/useLocalStorage'
-import { SafeTxContext } from '../SafeTxProvider'
-import { useAlreadySigned } from '@/components/tx/shared/hooks'
 
 const COMBO_SUBMIT_ACTION = 'comboSubmitAction'
 const EXECUTE_ACTION = 'execute'
@@ -27,8 +24,7 @@ const resolveSlotId = (slotIds: string[], storedAction: string | undefined): str
 }
 
 export const ComboSubmit = (props: SlotComponentProps<SlotName.Submit>) => {
-  const { txId, submitError, isRejectedByUser } = useContext(TxFlowContext)
-  const { safeTx } = useContext(SafeTxContext)
+  const { txId, willSignBeforeExecute } = useContext(TxFlowContext)
   const slotItems = useSlot(SlotName.ComboSubmit)
   const slotIds = useSlotIds(SlotName.ComboSubmit)
 
@@ -38,16 +34,12 @@ export const ComboSubmit = (props: SlotComponentProps<SlotName.Submit>) => {
     [validationResult],
   )
 
-  const hasSigned = useAlreadySigned(safeTx)
-
   const options = useMemo(() => slotItems.map(({ label, id }) => ({ label, id })), [slotItems])
   const [submitAction, setSubmitAction] = useLocalStorage<string>(COMBO_SUBMIT_ACTION)
 
   const slotId = useMemo(() => resolveSlotId(slotIds, submitAction), [slotIds, submitAction])
 
-  // Show warning if Execute is available but user selected Sign (either manually or from stored preference)
-  const executeAvailable = slotIds.includes(EXECUTE_ACTION)
-  const showLastSignerWarning = executeAvailable && submitAction === SIGN_ACTION && !hasSigned
+  const showLastSignerWarning = willSignBeforeExecute && slotId === SIGN_ACTION
 
   if (slotIds.length === 0) {
     return false
@@ -57,30 +49,16 @@ export const ComboSubmit = (props: SlotComponentProps<SlotName.Submit>) => {
 
   return (
     <>
-      {submitError && (
-        <Box mt={1}>
-          <ErrorMessage error={submitError} context="execution">
-            Error submitting the transaction. Please try again.
-          </ErrorMessage>
-        </Box>
-      )}
+      <SubmitErrors />
 
-      {isRejectedByUser && (
-        <Box mt={1}>
-          <WalletRejectionError />
-        </Box>
-      )}
-
-      {validationError !== undefined && (
-        <ErrorMessage error={validationError}>Error validating transaction data</ErrorMessage>
-      )}
+      {validationError !== undefined && <ErrorMessage error={validationError}>{validationError.message}</ErrorMessage>}
 
       {showLastSignerWarning && (
-        <Box mt={1}>
+        <div className="mt-2">
           <ErrorMessage level="info">
             You&apos;re providing the last signature. After you sign, anyone can execute this transaction.
           </ErrorMessage>
-        </Box>
+        </div>
       )}
 
       <Slot

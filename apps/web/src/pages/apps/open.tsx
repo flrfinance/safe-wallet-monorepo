@@ -1,7 +1,7 @@
 import type { NextPage } from 'next'
 import { useRouter } from 'next/router'
 import { useCallback } from 'react'
-import { Box, CircularProgress } from '@mui/material'
+import { Spinner } from '@safe-global/views/components/ui/spinner'
 
 import { useSafeAppUrl } from '@/hooks/safe-apps/useSafeAppUrl'
 import { useSafeApps } from '@/hooks/safe-apps/useSafeApps'
@@ -19,10 +19,12 @@ import { useHasFeature } from '@/hooks/useChains'
 import { useSafeAppRedirects } from '@/hooks/safe-apps/useSafeAppRedirects'
 
 import { FEATURES } from '@safe-global/utils/utils/chains'
+import { useSafeLinkQuery } from '@/hooks/useSafeLinkQuery'
 
 const SafeApps: NextPage = () => {
   const chainId = useChainId()
   const router = useRouter()
+  const safeLinkQuery = useSafeLinkQuery()
   const appUrl = useSafeAppUrl()
   const { remoteSafeAppsLoading, getSafeAppByUrl } = useSafeApps()
   const safeAppData = appUrl ? getSafeAppByUrl(appUrl) : undefined
@@ -50,9 +52,9 @@ const SafeApps: NextPage = () => {
   const goToList = useCallback(() => {
     router.push({
       pathname: AppRoutes.apps.index,
-      query: { safe: router.query.safe },
+      query: safeLinkQuery,
     })
-  }, [router])
+  }, [router, safeLinkQuery])
 
   const shouldRender = useSafeAppRedirects({
     safeAppData,
@@ -83,9 +85,9 @@ const SafeApps: NextPage = () => {
 
   if (isLoading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-        <CircularProgress />
-      </Box>
+      <div className="flex h-full items-center justify-center">
+        <Spinner className="size-10" />
+      </div>
     )
   }
 

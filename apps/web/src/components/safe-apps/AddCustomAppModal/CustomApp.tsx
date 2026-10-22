@@ -1,13 +1,14 @@
 import { useCallback } from 'react'
 import type { SafeApp as SafeAppData } from '@safe-global/store/gateway/AUTO_GENERATED/safe-apps'
-import { Typography, SvgIcon } from '@mui/material'
-import CheckIcon from '@mui/icons-material/Check'
+import { Check } from 'lucide-react'
 
+import { Typography, typographyVariants } from '@safe-global/views/components/ui/typography'
+import { cn } from '@safe-global/views/utils/cn'
 import { SAFE_APPS_EVENTS, trackSafeAppEvent } from '@/services/analytics'
 import CopyButton from '@/components/common/CopyButton'
 import ShareIcon from '@/public/images/common/share.svg'
-import css from './styles.module.css'
-import SafeAppIconCard from '@/components/safe-apps/SafeAppIconCard'
+import css from '@safe-global/views/components/safe-apps/AddCustomAppModal/styles.module.css'
+import SafeAppIconCard from '@safe-global/views/components/safe-apps/SafeAppIconCard'
 
 type CustomAppProps = {
   safeApp: SafeAppData
@@ -23,11 +24,11 @@ const CustomApp = ({ safeApp, shareUrl }: CustomAppProps) => {
     <div className={css.customAppContainer}>
       <SafeAppIconCard src={safeApp.iconUrl} alt={safeApp.name} width={48} height={48} />
 
-      <Typography component="h2" mt={2} color="text.primary" fontWeight={700}>
+      <h2 className={cn(typographyVariants({ variant: 'paragraph-bold' }), 'mt-4 text-[var(--color-text-primary)]')}>
         {safeApp.name}
-      </Typography>
+      </h2>
 
-      <Typography variant="body2" mt={1} color="text.secondary">
+      <Typography variant="paragraph-small" className="block mt-2 text-[var(--color-text-secondary)]">
         {safeApp.description}
       </Typography>
 
@@ -38,10 +39,10 @@ const CustomApp = ({ safeApp, shareUrl }: CustomAppProps) => {
           initialToolTipText={`Copy share URL for ${safeApp.name}`}
           onCopy={handleCopy}
         >
-          <SvgIcon component={ShareIcon} inheritViewBox color="border" fontSize="small" />
+          <ShareIcon className="size-4 text-[var(--color-border-main)]" />
         </CopyButton>
       ) : (
-        <CheckIcon color="success" className={css.customAppCheckIcon} />
+        <Check className={cn(css.customAppCheckIcon, 'text-[var(--color-success-main)]')} />
       )}
     </div>
   )

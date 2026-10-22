@@ -1,4 +1,4 @@
-import { Skeleton } from '@mui/material'
+import { Skeleton } from '@safe-global/views/components/ui/skeleton'
 import { useRouter } from 'next/router'
 import { useContext, useCallback, useState } from 'react'
 import { useAppSelector } from '@/store'
@@ -12,9 +12,10 @@ import { useTxBuilderApp } from '@/hooks/safe-apps/useTxBuilderApp'
 import { TxModalContext } from '@/components/tx-flow'
 import { TokenTransferFlow } from '@/components/tx-flow/flows'
 import { MoreVertical } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { DashboardHeader } from '@/features/spaces/components/Dashboard/DashboardHeader'
-import QrModal from '@/components/sidebar/QrCodeButton/QrModal'
+import { Button } from '@safe-global/views/components/ui/button'
+import { DashboardHeader } from './DashboardHeader'
+import QrModal from '@/components/common/QrCodeButton/QrModal'
+import { useUrlSpaceId, withSpaceId } from '@/hooks/useUrlSpaceId'
 
 const AggregatedBalance = ({
   safeItems,
@@ -25,6 +26,7 @@ const AggregatedBalance = ({
 }) => {
   const currency = useAppSelector(selectCurrency)
   const router = useRouter()
+  const spaceId = useUrlSpaceId()
   const { link: txBuilderLink } = useTxBuilderApp()
   const { setTxFlow } = useContext(TxModalContext)
   const firstSafe = safeItems[0]
@@ -63,7 +65,7 @@ const AggregatedBalance = ({
 
   const handleSwap = () => {
     if (!safeQueryParam) return
-    router.push({ pathname: AppRoutes.swap, query: { safe: safeQueryParam } })
+    router.push({ pathname: AppRoutes.swap, query: withSpaceId({ safe: safeQueryParam }, spaceId) })
   }
 
   const handleBuildTransaction = () => {
@@ -110,10 +112,10 @@ const AggregatedBalanceSkeleton = () => {
   return (
     <div className="mb-4 flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <Skeleton variant="rounded" width={80} height={16} />
-        <Skeleton variant="rounded" width={200} height={30} />
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-[30px] w-[200px]" />
       </div>
-      <Skeleton variant="rounded" width={400} height={36} />
+      <Skeleton className="h-9 w-[400px]" />
     </div>
   )
 }

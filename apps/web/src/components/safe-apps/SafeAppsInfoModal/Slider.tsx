@@ -1,6 +1,6 @@
-import { Box, Button } from '@mui/material'
 import React, { useState, useEffect, useMemo } from 'react'
-import css from './styles.module.css'
+import { Button } from '@safe-global/views/components/ui/button'
+import css from '@safe-global/views/components/safe-apps/SafeAppsInfoModal/styles.module.css'
 
 type SliderProps = {
   onSlideChange: (slideIndex: number) => void
@@ -68,24 +68,15 @@ const Slider: React.FC<SliderProps> = ({ onSlideChange, children, initialStep })
           ))}
         </div>
       </div>
-      <Box display="flex" justifyContent="center" width="100%">
-        <Button color="primary" variant="outlined" size="small" fullWidth onClick={prevSlide}>
+      <div className="mt-4 flex w-full shrink-0 gap-2 border-border pt-4">
+        <Button variant="outline" size="sm" className="min-w-0 flex-1" onClick={prevSlide}>
           {isFirstStep ? 'Cancel' : 'Back'}
         </Button>
 
-        <Button
-          color="primary"
-          variant="contained"
-          size="small"
-          fullWidth
-          onClick={nextSlide}
-          style={{
-            marginLeft: 10,
-          }}
-        >
+        <Button variant="default" size="sm" className="min-w-0 flex-1" onClick={nextSlide}>
           Continue
         </Button>
-      </Box>
+      </div>
     </>
   )
 }

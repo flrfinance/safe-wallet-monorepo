@@ -5,13 +5,16 @@ import * as network from '../pages/network.pages.js'
 import * as ls from '../../support/localstorage_data.js'
 import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import * as wallet from '../../support/utils/wallet.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
 
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
+let signer, signer2
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+  signer2 = walletCredentials.OWNER_2_PRIVATE_KEY
+})
 // DO NOT use OWNER_2_PRIVATE_KEY for safe creation. Used for CF safes.
-const signer2 = walletCredentials.OWNER_2_PRIVATE_KEY
 
 describe('Multichain header network switch tests', { defaultCommandTimeout: 30000 }, () => {
   before(async () => {
@@ -27,8 +30,7 @@ describe('Multichain header network switch tests', { defaultCommandTimeout: 3000
 
   it('Verify the list of networks where the safe is already deployed with the same address when all networks added', () => {
     let safe = main.changeSafeChainName(staticSafes.MATIC_STATIC_SAFE_28, 'sep')
-    cy.visit(constants.BALANCE_URL + safe)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + safe)
     network.addNetwork(constants.networks.ethereum)
     cy.contains(network.createSafeMsg(constants.networks.ethereum))
     network.clickChainNavigationButton()
@@ -56,13 +58,6 @@ describe('Multichain header network switch tests', { defaultCommandTimeout: 3000
     network.clickAllNetworksAccordion()
     network.verifyAddNetworkBtnListNotEmpty()
     network.verifyAddNetworkBtnExists(constants.networks.ethereum)
-  })
-
-  // TODO clarify if we need this split which is absent in the new design
-  it.skip('Verify that test networks and main networks are splitted', () => {
-    create_wallet.openNetworkSelector()
-    sideBar.checkNetworksInRange(constants.networks.sepolia, 1, 'below')
-    sideBar.checkNetworksInRange(constants.networks.polygon, 1, 'above')
   })
 
   it('Verify that CF safe is created if other available network is selected from the "Show all networks"', () => {

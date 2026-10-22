@@ -1,10 +1,11 @@
 import { useState, type ReactElement } from 'react'
-import { Alert, Box, Button, Typography } from '@mui/material'
+import { Alert, AlertTitle, AlertDescription, AlertSeverityIcon } from '@safe-global/views/components/ui/alert'
+import { Button } from '@safe-global/views/components/ui/button'
 import useSafeInfo from '@/hooks/useSafeInfo'
 import CheckWalletWithPermission from '@/components/common/CheckWalletWithPermission'
 import { useNotificationsRenewal } from '@/components/settings/PushNotifications/hooks/useNotificationsRenewal'
 import { useIsNotificationsRenewalEnabled } from '@/components/settings/PushNotifications/hooks/useNotificationsTokenVersion'
-import { RENEWAL_MESSAGE } from '@/components/settings/PushNotifications/constants'
+import { RENEWAL_MESSAGE } from '@safe-global/views/components/settings/PushNotifications/constants'
 import { Permission } from '@/permissions/config'
 
 const NotificationRenewal = (): ReactElement => {
@@ -26,22 +27,21 @@ const NotificationRenewal = (): ReactElement => {
 
   return (
     <>
-      <Alert severity="warning">
-        <Typography variant="body2" fontWeight={700} mb={1}>
-          Signature needed
-        </Typography>
-        <Typography variant="body2">{RENEWAL_MESSAGE}</Typography>
+      <Alert variant="warning" outlined={false}>
+        <AlertSeverityIcon variant="warning" />
+        <AlertTitle className="mb-2">Signature needed</AlertTitle>
+        <AlertDescription>{RENEWAL_MESSAGE}</AlertDescription>
       </Alert>
-      <Box>
+      <div>
         <CheckWalletWithPermission
           permission={Permission.EnablePushNotifications}
           checkNetwork={!isRegistering && safe.deployed}
         >
           {(isOk) => (
             <Button
-              variant="contained"
-              size="small"
-              sx={{ width: '200px' }}
+              variant="outline"
+              size="sm"
+              className="w-[200px] text-foreground"
               onClick={handeSignClick}
               disabled={!isOk || isRegistering || !safe.deployed}
             >
@@ -49,7 +49,7 @@ const NotificationRenewal = (): ReactElement => {
             </Button>
           )}
         </CheckWalletWithPermission>
-      </Box>
+      </div>
     </>
   )
 }

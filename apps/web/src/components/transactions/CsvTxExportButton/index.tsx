@@ -1,4 +1,6 @@
-import { Box, Button, CircularProgress, SvgIcon, Typography } from '@mui/material'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Spinner } from '@safe-global/views/components/ui/spinner'
+import { Typography } from '@safe-global/views/components/ui/typography'
 import { useCsvExportGetExportStatusV1Query } from '@safe-global/store/gateway/AUTO_GENERATED/csv-export'
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -7,7 +9,7 @@ import CsvTxExportModal from '../CsvTxExportModal'
 import { useAppDispatch } from '@/store'
 import { showNotification } from '@/store/notificationsSlice'
 import { OnboardingTooltip } from '@/components/common/OnboardingTooltip'
-import { Chip } from '@/components/common/Chip'
+import { Chip } from '@safe-global/views/components/common/Chip'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import OnlyOwnerOrProposer from '@/components/common/OnlyOwnerOrProposer'
 import { trackEvent } from '@/services/analytics'
@@ -133,30 +135,19 @@ const CsvTxExportButton = ({ hasActiveFilter }: CsvTxExportProps): ReactElement 
         placement="bottom-end"
         titleProps={{ flexDirection: 'column', alignItems: 'flex-end', maxWidth: 263 }}
         text={
-          <Box mt={1}>
+          <div className="mt-2">
             <Chip sx={{ borderRadius: 1, ...chipStyles }} fontWeight="normal" />
-            <Typography mt={1} variant="body2">
+            <Typography className="block mt-2" variant="paragraph-small">
               Export your transaction history for financial reporting.
             </Typography>
-          </Box>
+          </div>
         }
       >
         <div>
           <OnlyOwnerOrProposer placement="top">
             {(isOk) => (
-              <Button
-                variant="outlined"
-                onClick={onClick}
-                size="small"
-                startIcon={
-                  exportJobId ? (
-                    <CircularProgress size={16} />
-                  ) : (
-                    <SvgIcon component={ExportIcon} inheritViewBox fontSize="small" />
-                  )
-                }
-                disabled={!isOk || !!exportJobId}
-              >
+              <Button variant="outline" size="action" onClick={onClick} disabled={!isOk || !!exportJobId}>
+                {exportJobId ? <Spinner className="size-5" /> : <ExportIcon className="size-5" />}
                 {exportJobId ? 'Exporting' : 'Export'}
               </Button>
             )}

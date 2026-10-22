@@ -9,10 +9,11 @@ import { StartTimeValue } from '@safe-global/store/gateway/types'
 import OrderId from '../OrderId'
 import { formatDateTime, formatTimeInWords, getPeriod } from '@safe-global/utils/utils/date'
 import { Fragment, type ReactElement } from 'react'
-import { DataRow } from '@/components/common/Table/DataRow'
-import { DataTable } from '@/components/common/Table/DataTable'
+import { DataRow } from '@safe-global/views/components/common/Table/DataRow'
+import { DataTable } from '@safe-global/views/components/common/Table/DataTable'
 import { compareAsc } from 'date-fns'
-import { Alert, Typography } from '@mui/material'
+import { Alert, AlertDescription } from '@safe-global/views/components/ui/alert'
+import { Typography } from '@safe-global/views/components/ui/typography'
 import { formatAmount } from '@safe-global/utils/utils/formatNumber'
 import { getLimitPrice, getOrderClass, getSlippageInPercent } from '../../helpers/utils'
 import SwapTokens from '../SwapTokens'
@@ -20,12 +21,12 @@ import AlertIcon from '@/public/images/common/alert.svg'
 import EthHashInfo from '@/components/common/EthHashInfo'
 import css from './styles.module.css'
 import NamedAddress from '@/components/common/NamedAddressInfo'
-import { PartDuration } from '../SwapOrder/rows/PartDuration'
-import { PartSellAmount } from '../SwapOrder/rows/PartSellAmount'
-import { PartBuyAmount } from '../SwapOrder/rows/PartBuyAmount'
+import { PartDuration } from '@safe-global/views/features/swap/components/SwapOrder/rows/PartDuration'
+import { PartSellAmount } from '@safe-global/views/features/swap/components/SwapOrder/rows/PartSellAmount'
+import { PartBuyAmount } from '@safe-global/views/features/swap/components/SwapOrder/rows/PartBuyAmount'
 import { OrderFeeConfirmationView } from './OrderFeeConfirmationView'
 import { isSettingTwapFallbackHandler } from '../../helpers/utils'
-import { TwapFallbackHandlerWarning } from '../TwapFallbackHandlerWarning'
+import { TwapFallbackHandlerWarning } from '@safe-global/views/features/swap/components/TwapFallbackHandlerWarning'
 
 type SwapOrderProps = {
   order: SwapOrderTransactionInfo | SwapTransferTransactionInfo | TwapOrderTransactionInfo
@@ -77,10 +78,8 @@ const SwapOrderConfirmation = ({ order, decodedData, settlementContract }: SwapO
           compareAsc(now, expires) !== 1 ? (
             <DataRow datatestid="expiry" key="Expiry" title="Expiry">
               <Typography>
-                <Typography fontWeight={700} component="span">
-                  {formatTimeInWords(validUntil * 1000)}
-                </Typography>{' '}
-                ({formatDateTime(validUntil * 1000)})
+                <span className="font-bold">{formatTimeInWords(validUntil * 1000)}</span> (
+                {formatDateTime(validUntil * 1000)})
               </Typography>
             </DataRow>
           ) : (
@@ -100,7 +99,7 @@ const SwapOrderConfirmation = ({ order, decodedData, settlementContract }: SwapO
               <OrderId orderId={order.uid} href={explorerUrl!} />
             </DataRow>
           ) : (
-            <></>
+            <Fragment key="no-order-id" />
           ),
           <OrderFeeConfirmationView
             key="SurplusFee"
@@ -110,23 +109,26 @@ const SwapOrderConfirmation = ({ order, decodedData, settlementContract }: SwapO
             <NamedAddress address={settlementContract} onlyName hasExplorer shortAddress={false} avatarSize={24} />
           </DataRow>,
           receiver && owner !== receiver ? (
-            <>
+            <Fragment key="recipient-block">
               <DataRow datatestid="recipient" key="recipient-address" title="Recipient">
                 <EthHashInfo address={receiver} hasExplorer={true} avatarSize={24} />
               </DataRow>
               <div key="recipient">
-                <Alert data-testid="recipient-alert" severity="warning" icon={AlertIcon}>
-                  <Typography variant="body2">
-                    <Typography component="span" sx={{ fontWeight: 'bold' }}>
-                      Order recipient address differs from order owner.
-                    </Typography>{' '}
-                    Double check the address to prevent fund loss.
-                  </Typography>
+                <Alert data-testid="recipient-alert" variant="warning" outlined={false}>
+                  <AlertIcon />
+                  <AlertDescription>
+                    <Typography variant="paragraph-small">
+                      <Typography variant="paragraph-small-bold" className="inline">
+                        Order recipient address differs from order owner.
+                      </Typography>{' '}
+                      Double check the address to prevent fund loss.
+                    </Typography>
+                  </AlertDescription>
                 </Alert>
               </div>
-            </>
+            </Fragment>
           ) : (
-            <></>
+            <Fragment key="no-recipient" />
           ),
         ]}
       />
@@ -135,7 +137,7 @@ const SwapOrderConfirmation = ({ order, decodedData, settlementContract }: SwapO
         <div className={css.partsBlock}>
           <DataTable
             rows={[
-              <Typography key="title" variant="body1" className={css.partsBlockTitle}>
+              <Typography key="title" variant="paragraph" className={css.partsBlockTitle}>
                 <strong>
                   Order will be split in{' '}
                   <span className={css.numberOfPartsLabel}>{order.numberOfParts} equal parts</span>

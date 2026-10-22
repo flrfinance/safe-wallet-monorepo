@@ -1,34 +1,34 @@
 import { useContext, type SyntheticEvent } from 'react'
 import { SafeTxContext } from '@/components/tx-flow/SafeTxProvider'
-import { useTxActions } from '@/components/tx/shared/hooks'
 import useIsSafeOwner from '@/hooks/useIsSafeOwner'
 import { isDelegateCall as checkIsDelegateCall } from '@/services/tx/tx-sender/sdk'
 import { TxModalContext } from '@/components/tx-flow'
 import { TxFlowContext } from '../../TxFlowProvider'
 import { useIsCounterfactualSafe } from '@/features/counterfactual'
+import { useUpdateBatch } from '@/features/batching'
 import { type SlotComponentProps, SlotName, withSlot } from '../../slots'
 import { asError } from '@safe-global/utils/services/exceptions/utils'
 import { Errors, logError } from '@/services/exceptions'
-import SplitMenuButton from '@/components/common/SplitMenuButton'
+import SplitMenuButton from '@safe-global/views/components/common/SplitMenuButton'
 import { BATCH_EVENTS, trackEvent } from '@/services/analytics'
-import { TxCardActions } from '../../common/TxCard'
-import { Box, Divider } from '@mui/material'
-import commonCss from '@/components/tx-flow/common/styles.module.css'
+import { TxCardActions } from '@safe-global/views/components/tx-flow/common/TxCard'
+import { Separator } from '@safe-global/views/components/ui/separator'
 import { isMultiSendCalldata } from '@/utils/transaction-calldata'
 import { SafeAppsName } from '@/config/constants'
 import { useHasFeature } from '@/hooks/useChains'
 import { FEATURES } from '@safe-global/utils/utils/chains'
 
-const Batching = ({
+export const Batching = ({
   onSubmit,
   onSubmitSuccess,
   options = [],
   onChange,
   disabled = false,
   slotId,
+  txPreview,
 }: SlotComponentProps<SlotName.ComboSubmit>) => {
   const { setTxFlow } = useContext(TxModalContext)
-  const { addToBatch } = useTxActions()
+  const [addToBatch] = useUpdateBatch()
   const { safeTx } = useContext(SafeTxContext)
   const { isSubmitDisabled, setIsSubmitLoading, isSubmitLoading, setSubmitError, setIsRejectedByUser } =
     useContext(TxFlowContext)
@@ -47,7 +47,7 @@ const Batching = ({
     setSubmitError(undefined)
 
     try {
-      await addToBatch(safeTx, origin)
+      await addToBatch(safeTx, txPreview?.txInfo.type)
     } catch (_err) {
       const err = asError(_err)
       logError(Errors._819, err)
@@ -65,8 +65,8 @@ const Batching = ({
   }
 
   return (
-    <Box>
-      <Divider className={commonCss.nestedDivider} />
+    <div>
+      <Separator bleed="6" />
 
       <TxCardActions>
         <SplitMenuButton
@@ -78,7 +78,7 @@ const Batching = ({
           loading={isSubmitLoading}
         />
       </TxCardActions>
-    </Box>
+    </div>
   )
 }
 

@@ -3,7 +3,7 @@ import { SafeShieldDisplay } from '../SafeShieldDisplay'
 import { RecipientAnalysisBuilder, ContractAnalysisBuilder } from '@safe-global/utils/features/safe-shield/builders'
 import { ThreatAnalysisBuilder } from '@safe-global/utils/features/safe-shield/builders/threat-analysis.builder'
 import { faker } from '@faker-js/faker'
-import * as useCheckSimulation from '@/features/safe-shield/hooks/useCheckSimulation'
+import * as useCheckSimulation from '../../hooks/useCheckSimulation'
 import type {
   RecipientAnalysisResults,
   ContractAnalysisResults,
@@ -11,9 +11,21 @@ import type {
   DeadlockAnalysisResults,
 } from '@safe-global/utils/features/safe-shield/types'
 import type { AsyncResult } from '@safe-global/utils/hooks/useAsync'
+import { hypernativeAuthStatusBuilder } from '@/tests/builders/hypernativeAuthStatus'
+import { useSafenetShieldState, type SafenetShieldState } from '@/features/safenet-checks'
+import { Severity } from '@safe-global/utils/features/safe-shield/types'
 
 // Mock hooks
-jest.mock('@/features/safe-shield/hooks/useCheckSimulation')
+jest.mock('../../hooks/useCheckSimulation')
+jest.mock('@/features/safenet-checks', () => ({
+  ...jest.requireActual('@/features/safenet-checks'),
+  useSafenetShieldState: jest.fn(),
+}))
+
+const mockSafenetState = (state: Partial<SafenetShieldState> = {}) =>
+  jest
+    .mocked(useSafenetShieldState)
+    .mockReturnValue({ check: { shown: false, passed: false }, risk: undefined, ...state })
 
 // Default empty AsyncResult values
 const emptyRecipient: AsyncResult<RecipientAnalysisResults> = [{}, undefined, false]
@@ -32,10 +44,12 @@ describe('SafeShieldDisplay', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockSafenetState()
 
     // Mock useCheckSimulation to return no simulation error by default
     jest.spyOn(useCheckSimulation, 'useCheckSimulation').mockReturnValue({
       hasSimulationError: false,
+      isSimulationSuccess: false,
     })
 
     // Recreate mocks for each test to avoid mutation issues
@@ -59,7 +73,8 @@ describe('SafeShieldDisplay', () => {
         />,
       )
 
-      expect(container.querySelector('.MuiSvgIcon-root')).toBeInTheDocument()
+      // The Safe Shield logo renders as the mocked SVG element
+      expect(container.querySelector('mock-icon')).toBeInTheDocument()
     })
 
     it('should render with empty props', () => {
@@ -72,12 +87,13 @@ describe('SafeShieldDisplay', () => {
         />,
       )
 
-      expect(container.querySelector('.MuiCard-root')).toBeInTheDocument()
-      expect(container.querySelector('.MuiSvgIcon-root')).toBeInTheDocument()
+      // Root widget container and the logo render
+      expect(screen.getByTestId('safe-shield-widget')).toBeInTheDocument()
+      expect(container.querySelector('mock-icon')).toBeInTheDocument()
     })
 
     it('should have correct layout structure', () => {
-      const { container } = render(
+      render(
         <SafeShieldDisplay
           recipient={emptyRecipient}
           contract={emptyContract}
@@ -86,18 +102,14 @@ describe('SafeShieldDisplay', () => {
         />,
       )
 
-      // Check for Stack container
-      const stacks = container.querySelectorAll('.MuiStack-root')
-      expect(stacks.length).toBeGreaterThan(0)
-
-      // Check for Card container
-      const card = container.querySelector('.MuiCard-root')
-      expect(card).toBeInTheDocument()
+      // Root widget container and header are rendered
+      expect(screen.getByTestId('safe-shield-widget')).toBeInTheDocument()
+      expect(screen.getByTestId('safe-shield-status')).toBeInTheDocument()
     })
   })
 
   describe('Header States', () => {
-    it('should show "Checks passed" when all results are OK', () => {
+    it('counts the passed checks when all results are OK', () => {
       render(
         <SafeShieldDisplay
           recipient={mockRecipient}
@@ -107,7 +119,51 @@ describe('SafeShieldDisplay', () => {
         />,
       )
 
-      expect(screen.getByText('Checks passed')).toBeInTheDocument()
+      expect(screen.getByText('3 of 3 checks passed')).toBeInTheDocument()
+    })
+
+    it('counts the locked Pro checks, Safenet included, as not passed without Safe Pro', () => {
+      mockSafenetState({ check: { shown: true, passed: false } })
+      render(
+        <SafeShieldDisplay
+          recipient={emptyRecipient}
+          contract={emptyContract}
+          threat={mockThreat}
+          deadlock={emptyDeadlock}
+          hasProFeatures={false}
+        />,
+      )
+
+      expect(screen.getByText('1 of 3 checks passed')).toBeInTheDocument()
+    })
+
+    it('counts a Safenet verdict as a check', () => {
+      mockSafenetState({ check: { shown: true, passed: true } })
+      render(
+        <SafeShieldDisplay
+          recipient={mockRecipient}
+          contract={mockContract}
+          threat={mockThreat}
+          deadlock={emptyDeadlock}
+        />,
+      )
+
+      expect(screen.getByText('4 of 4 checks passed')).toBeInTheDocument()
+    })
+
+    it('shows a Safenet risk instead of "all checks passed"', () => {
+      mockSafenetState({ risk: { severity: Severity.CRITICAL, title: 'Risk detected' } })
+      render(
+        <SafeShieldDisplay
+          recipient={mockRecipient}
+          contract={mockContract}
+          threat={mockThreat}
+          deadlock={emptyDeadlock}
+        />,
+      )
+
+      expect(screen.getByTestId('safe-shield-status')).toHaveTextContent('Risk detected')
+      expect(screen.queryByText(/checks passed/i)).not.toBeInTheDocument()
     })
 
     it('should show "Risk detected" when there are critical issues', () => {
@@ -243,7 +299,7 @@ describe('SafeShieldDisplay', () => {
       )
 
       // Header should show status
-      expect(screen.getByText('Checks passed')).toBeInTheDocument()
+      expect(screen.getByText(/checks passed/i)).toBeInTheDocument()
       // Content should not show empty state
       expect(
         screen.queryByText(
@@ -263,7 +319,7 @@ describe('SafeShieldDisplay', () => {
       )
 
       // Header should show status
-      expect(screen.getByText('Checks passed')).toBeInTheDocument()
+      expect(screen.getByText(/checks passed/i)).toBeInTheDocument()
       // Content should not show empty state
       expect(
         screen.queryByText(
@@ -283,7 +339,7 @@ describe('SafeShieldDisplay', () => {
       )
 
       // Threat data is displayed with appropriate status
-      expect(screen.getByText('Checks passed')).toBeInTheDocument()
+      expect(screen.getByText(/checks passed/i)).toBeInTheDocument()
       // Content should not show empty state when threat data is present
       expect(
         screen.queryByText(
@@ -302,8 +358,8 @@ describe('SafeShieldDisplay', () => {
         />,
       )
 
-      expect(screen.getByText('Checks passed')).toBeInTheDocument()
-      expect(container.querySelector('.MuiSvgIcon-root')).toBeInTheDocument()
+      expect(screen.getByText(/checks passed/i)).toBeInTheDocument()
+      expect(container.querySelector('mock-icon')).toBeInTheDocument()
     })
   })
 
@@ -337,7 +393,7 @@ describe('SafeShieldDisplay', () => {
         />,
       )
 
-      expect(container.querySelector('.MuiSvgIcon-root')).toBeInTheDocument()
+      expect(container.querySelector('mock-icon')).toBeInTheDocument()
     })
 
     it('should render logo even with errors', () => {
@@ -353,7 +409,7 @@ describe('SafeShieldDisplay', () => {
         />,
       )
 
-      expect(container.querySelector('.MuiSvgIcon-root')).toBeInTheDocument()
+      expect(container.querySelector('mock-icon')).toBeInTheDocument()
     })
 
     it('should render logo during loading', () => {
@@ -371,7 +427,7 @@ describe('SafeShieldDisplay', () => {
         />,
       )
 
-      expect(container.querySelector('.MuiSvgIcon-root')).toBeInTheDocument()
+      expect(container.querySelector('mock-icon')).toBeInTheDocument()
     })
   })
 
@@ -383,12 +439,7 @@ describe('SafeShieldDisplay', () => {
           contract={emptyContract}
           threat={emptyThreat}
           deadlock={emptyDeadlock}
-          hypernativeAuth={{
-            isAuthenticated: false,
-            isTokenExpired: false,
-            initiateLogin: jest.fn(),
-            logout: jest.fn(),
-          }}
+          hypernativeAuth={hypernativeAuthStatusBuilder().build()}
         />,
       )
 
@@ -402,12 +453,7 @@ describe('SafeShieldDisplay', () => {
           contract={emptyContract}
           threat={emptyThreat}
           deadlock={emptyDeadlock}
-          hypernativeAuth={{
-            isAuthenticated: true,
-            isTokenExpired: true,
-            initiateLogin: jest.fn(),
-            logout: jest.fn(),
-          }}
+          hypernativeAuth={hypernativeAuthStatusBuilder().with({ isAuthenticated: true, isTokenExpired: true }).build()}
         />,
       )
 
@@ -421,17 +467,14 @@ describe('SafeShieldDisplay', () => {
           contract={emptyContract}
           threat={emptyThreat}
           deadlock={emptyDeadlock}
-          hypernativeAuth={{
-            isAuthenticated: true,
-            isTokenExpired: false,
-            initiateLogin: jest.fn(),
-            logout: jest.fn(),
-          }}
+          hypernativeAuth={hypernativeAuthStatusBuilder()
+            .with({ isAuthenticated: true, isTokenExpired: false })
+            .build()}
         />,
       )
 
       expect(screen.queryByText('Authentication required')).not.toBeInTheDocument()
-      expect(screen.getByText('Checks passed')).toBeInTheDocument()
+      expect(screen.getByText(/checks passed/i)).toBeInTheDocument()
     })
 
     it('should not show authentication required when hypernativeAuth is not provided', () => {
@@ -445,7 +488,7 @@ describe('SafeShieldDisplay', () => {
       )
 
       expect(screen.queryByText('Authentication required')).not.toBeInTheDocument()
-      expect(screen.getByText('Checks passed')).toBeInTheDocument()
+      expect(screen.getByText(/checks passed/i)).toBeInTheDocument()
     })
   })
 })

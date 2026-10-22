@@ -1,4 +1,4 @@
-import { toBeHex } from 'ethers'
+import { faker } from '@faker-js/faker'
 import {
   setHiddenTokensForChain,
   setCuratedNestedSafes,
@@ -7,8 +7,10 @@ import {
   isEnvInitialState,
   initialState,
   selectCuratedNestedSafes,
+  selectHasOwnTenderly,
   selectHasCompletedCuration,
   selectCuratedAddresses,
+  selectAllCuratedNestedSafes,
 } from '../settingsSlice'
 import type { SettingsState } from '../settingsSlice'
 import type { RootState } from '..'
@@ -25,9 +27,9 @@ const createCurationState = (
 
 describe('settingsSlice', () => {
   it('handle hiddenTokens', () => {
-    const token1 = toBeHex('0x1', 20)
-    const token2 = toBeHex('0x2', 20)
-    const token3 = toBeHex('0x3', 20)
+    const token1 = faker.finance.ethereumAddress()
+    const token2 = faker.finance.ethereumAddress()
+    const token3 = faker.finance.ethereumAddress()
 
     let state = settingsSlice.reducer(undefined, setHiddenTokensForChain({ chainId: '1', assets: [token1] }))
     expect(state.hiddenTokens).toEqual({
@@ -165,12 +167,54 @@ describe('settingsSlice', () => {
     })
   })
 
+  describe('selectHasOwnTenderly', () => {
+    const stateWithTenderly = (tenderly: { url: string; accessToken: string }): RootState =>
+      ({
+        settings: {
+          env: {
+            rpc: {},
+            tenderly,
+          },
+        },
+      }) as unknown as RootState
+
+    it('should return true when both the URL and the access token are set', () => {
+      expect(
+        selectHasOwnTenderly(
+          stateWithTenderly({
+            url: 'https://api.tenderly.co/api/v1/account/my-org/project/my-project/simulate',
+            accessToken: 'test123',
+          }),
+        ),
+      ).toBe(true)
+    })
+
+    it('should return false when neither is set', () => {
+      expect(selectHasOwnTenderly(stateWithTenderly({ url: '', accessToken: '' }))).toBe(false)
+    })
+
+    it('should return false when the URL is set without an access token', () => {
+      expect(
+        selectHasOwnTenderly(
+          stateWithTenderly({
+            url: 'https://api.tenderly.co/api/v1/account/my-org/project/my-project/simulate',
+            accessToken: '',
+          }),
+        ),
+      ).toBe(false)
+    })
+
+    it('should return false when the access token is set without a URL', () => {
+      expect(selectHasOwnTenderly(stateWithTenderly({ url: '', accessToken: 'test123' }))).toBe(false)
+    })
+  })
+
   describe('setCuratedNestedSafes', () => {
-    const parentSafe1 = toBeHex('0x1', 20)
-    const parentSafe2 = toBeHex('0x2', 20)
-    const nestedSafe1 = toBeHex('0x10', 20)
-    const nestedSafe2 = toBeHex('0x20', 20)
-    const nestedSafe3 = toBeHex('0x30', 20)
+    const parentSafe1 = faker.finance.ethereumAddress()
+    const parentSafe2 = faker.finance.ethereumAddress()
+    const nestedSafe1 = faker.finance.ethereumAddress()
+    const nestedSafe2 = faker.finance.ethereumAddress()
+    const nestedSafe3 = faker.finance.ethereumAddress()
 
     it('should set curated nested safes for a parent safe', () => {
       const state = settingsSlice.reducer(
@@ -271,8 +315,8 @@ describe('settingsSlice', () => {
   })
 
   describe('clearCuratedNestedSafes', () => {
-    const parentSafe = toBeHex('0x1', 20)
-    const nestedSafe1 = toBeHex('0x10', 20)
+    const parentSafe = faker.finance.ethereumAddress()
+    const nestedSafe1 = faker.finance.ethereumAddress()
 
     it('should remove curation state for a parent safe', () => {
       let state = settingsSlice.reducer(
@@ -291,9 +335,9 @@ describe('settingsSlice', () => {
   })
 
   describe('selectCuratedNestedSafes', () => {
-    const parentSafe = toBeHex('0x1', 20)
-    const nestedSafe1 = toBeHex('0x10', 20)
-    const nestedSafe2 = toBeHex('0x20', 20)
+    const parentSafe = faker.finance.ethereumAddress()
+    const nestedSafe1 = faker.finance.ethereumAddress()
+    const nestedSafe2 = faker.finance.ethereumAddress()
 
     it('should return curated state for a parent safe', () => {
       const state = createCurationState({
@@ -319,7 +363,7 @@ describe('settingsSlice', () => {
   })
 
   describe('selectHasCompletedCuration', () => {
-    const parentSafe = toBeHex('0x1', 20)
+    const parentSafe = faker.finance.ethereumAddress()
 
     it('should return true when curation is complete', () => {
       const state = createCurationState({
@@ -353,9 +397,9 @@ describe('settingsSlice', () => {
   })
 
   describe('selectCuratedAddresses', () => {
-    const parentSafe = toBeHex('0x1', 20)
-    const nestedSafe1 = toBeHex('0x10', 20)
-    const nestedSafe2 = toBeHex('0x20', 20)
+    const parentSafe = faker.finance.ethereumAddress()
+    const nestedSafe1 = faker.finance.ethereumAddress()
+    const nestedSafe2 = faker.finance.ethereumAddress()
 
     it('should return curated addresses for a parent safe', () => {
       const state = createCurationState({
@@ -373,6 +417,39 @@ describe('settingsSlice', () => {
       const state = createCurationState({})
 
       expect(selectCuratedAddresses(state, parentSafe)).toEqual([])
+    })
+  })
+
+  describe('selectAllCuratedNestedSafes', () => {
+    const parentA = faker.finance.ethereumAddress()
+    const parentB = faker.finance.ethereumAddress()
+    const nested1 = faker.finance.ethereumAddress()
+    const nested2 = faker.finance.ethereumAddress()
+    const nested3 = faker.finance.ethereumAddress()
+
+    it('flattens, lowercases and dedupes curated addresses across all parents', () => {
+      const state = createCurationState({
+        [parentA.toLowerCase()]: {
+          selectedAddresses: [nested1, nested2.toUpperCase()],
+          hasCompletedCuration: true,
+          lastModified: 1,
+        },
+        [parentB.toLowerCase()]: {
+          selectedAddresses: [nested2, nested3], // nested2 duplicated across parents
+          hasCompletedCuration: true,
+          lastModified: 2,
+        },
+      })
+
+      const result = selectAllCuratedNestedSafes(state)
+      expect(result).toContain(nested1.toLowerCase())
+      expect(result).toContain(nested2.toLowerCase())
+      expect(result).toContain(nested3.toLowerCase())
+      expect(result.filter((addr) => addr === nested2.toLowerCase())).toHaveLength(1)
+    })
+
+    it('returns an empty array when there is no curation', () => {
+      expect(selectAllCuratedNestedSafes(createCurationState({}))).toEqual([])
     })
   })
 })

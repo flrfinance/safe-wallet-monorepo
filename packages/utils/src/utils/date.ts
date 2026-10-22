@@ -17,6 +17,14 @@ export const relativeTime = (baseTimeMin: string, resetTimeMin: string): string 
 
 export const formatWithSchema = (timestamp: number, schema: string): string => format(timestamp, schema)
 
+export const formatDate = (timestamp: number): string => formatWithSchema(timestamp, 'MMM d, yyyy')
+
+export const parseTimestamp = (value: string | null | undefined): number | null => {
+  if (!value) return null
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
 export const formatTime = (timestamp: number): string => formatWithSchema(timestamp, 'h:mm a')
 
 export const formatDateTime = (timestamp: number): string => formatWithSchema(timestamp, 'MMM d, yyyy - h:mm:ss a')
@@ -51,4 +59,19 @@ export function getPeriod(seconds: number): string | undefined {
   if (minutes > 0) {
     return `${minutes} minute${maybePlural(minutes)}`
   }
+}
+
+export function getDetailedPeriod(seconds: number): string {
+  const { days, hours, minutes } = getCountdown(seconds)
+  const units: Array<[number, string]> = [
+    [days, 'day'],
+    [hours, 'hour'],
+    [minutes, 'minute'],
+    [seconds % 60, 'second'],
+  ]
+
+  return units
+    .filter(([amount]) => amount > 0)
+    .map(([amount, unit]) => `${amount} ${unit}${maybePlural(amount)}`)
+    .join(', ')
 }

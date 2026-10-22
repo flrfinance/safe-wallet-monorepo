@@ -30,13 +30,19 @@ describe('[SMOKE] Load Safe tests', { defaultCommandTimeout: 30000 }, () => {
   })
 
   it('[SMOKE] Verify names cannot have more than 50 characters', () => {
-    // Wait due to re-render issues of the element
-    cy.wait(5000)
+    // The name input re-renders when the chain config sets its placeholder.
+    createwallet.verifyDefaultWalletName(createwallet.defaultSepoliaPlaceholder)
     safe.inputName(main.generateRandomString(51))
     safe.verifyNameLengthErrorMessage()
   })
 
   it('[SMOKE] Verify ENS name is translated to a valid address', () => {
+    cy.fixture('ens_e2etestsafe').then((results) => {
+      cy.intercept('POST', '**', (req) => {
+        const result = results[req.body?.params?.[0]?.to?.toLowerCase()]
+        if (result) req.reply({ body: { jsonrpc: '2.0', id: req.body.id, result } })
+      })
+    })
     safe.inputAddress(constants.ENS_TEST_SEPOLIA)
     safe.verifyAddressInputValue(staticSafes.SEP_STATIC_SAFE_6)
     safe.verifyNextButtonStatus('be.enabled')
@@ -49,7 +55,7 @@ describe('[SMOKE] Load Safe tests', { defaultCommandTimeout: 30000 }, () => {
   })
 
   it('[SMOKE] Verify non-smart contract address is not allowed in safe address', () => {
-    safe.inputAddress(constants.DEFAULT_OWNER_ADDRESS)
+    safe.inputAddress(constants.defaultOwnerAddress())
     safe.verifyAddressError()
   })
 })

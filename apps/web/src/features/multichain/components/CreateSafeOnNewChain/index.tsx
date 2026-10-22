@@ -6,18 +6,18 @@ import useAddressBook from '@/hooks/useAddressBook'
 import { CREATE_SAFE_CATEGORY, CREATE_SAFE_EVENTS, OVERVIEW_EVENTS, trackEvent } from '@/services/analytics'
 import { gtmSetChainId } from '@/services/analytics/gtm'
 import { showNotification } from '@/store/notificationsSlice'
-import { Box, Button, CircularProgress, DialogActions, DialogContent, Stack, Typography } from '@mui/material'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Spinner } from '@safe-global/views/components/ui/spinner'
+import { Typography } from '@safe-global/views/components/ui/typography'
 import { FormProvider, useForm } from 'react-hook-form'
 import { useSafeCreationData } from '../../hooks/useSafeCreationData'
-import { CounterfactualFeature } from '@/features/counterfactual'
-import { useLoadFeature } from '@/features/__core__'
 import useChains from '@/hooks/useChains'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { selectRpc } from '@/store/settingsSlice'
 import { createWeb3ReadOnly } from '@/hooks/wallets/web3'
 import { hasMultiChainAddNetworkFeature, predictAddressBasedOnReplayData } from '../../utils'
 import { sameAddress } from '@safe-global/utils/utils/addresses'
-import ExternalLink from '@/components/common/ExternalLink'
+import ExternalLink from '@safe-global/views/components/common/ExternalLink'
 import { useRouter } from 'next/router'
 import ChainIndicator from '@/components/common/ChainIndicator'
 import { type Chain } from '@safe-global/store/gateway/AUTO_GENERATED/chains'
@@ -27,6 +27,12 @@ import { MULTICHAIN_HELP_ARTICLE } from '@/config/constants'
 import { PayMethod } from '@safe-global/utils/features/counterfactual/types'
 import { AppRoutes, UNDEPLOYED_SAFE_BLOCKED_ROUTES } from '@/config/routes'
 import type { CreateSafeOnNewChainForm, ReplaySafeDialogProps } from '../../types'
+import { persistCounterfactualSafe } from '@/features/counterfactual/services'
+import { isAuthenticated } from '@/store/authSlice'
+import { useIsAdmin, useSpaceSafeCount, useSpaceSafeLimit } from '@/features/spaces'
+import { useUrlSpaceId } from '@/hooks/useUrlSpaceId'
+import { isSpaceAtSafeLimit } from '@/utils/spaces'
+import { useSpaceSafesGetV1Query } from '@safe-global/store/gateway/AUTO_GENERATED/spaces'
 
 const ReplaySafeDialog = ({
   safeAddress,
@@ -49,8 +55,26 @@ const ReplaySafeDialog = ({
   const addressBook = useAddressBook()
 
   const customRpc = useAppSelector(selectRpc)
+  const isUserAuthenticated = useAppSelector(isAuthenticated)
+  const spaceId = useUrlSpaceId()
+  const isAdminOfActiveSpace = useIsAdmin(spaceId ?? undefined)
+  const spaceSafeCount = useSpaceSafeCount(spaceId)
+  const { limit: spaceSafeLimit } = useSpaceSafeLimit(spaceId)
+  const { currentData: spaceSafes } = useSpaceSafesGetV1Query(
+    { spaceId: spaceId ?? '' },
+    { skip: !isUserAuthenticated || spaceId === null },
+  )
+  // Seats are per address: another chain of a Safe already in the space takes none.
+  const holdsSeatInSpace = Object.values(spaceSafes?.safes ?? {}).some((addresses) =>
+    addresses.some((address) => sameAddress(address, safeAddress)),
+  )
+  const willStayOutsideSpace =
+    isUserAuthenticated &&
+    spaceId !== null &&
+    isAdminOfActiveSpace &&
+    !holdsSeatInSpace &&
+    isSpaceAtSafeLimit(spaceSafeCount, spaceSafeLimit)
   const dispatch = useAppDispatch()
-  const { replayCounterfactualSafeDeployment } = useLoadFeature(CounterfactualFeature)
   const [creationError, setCreationError] = useState<Error>()
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
@@ -70,6 +94,9 @@ const ReplaySafeDialog = ({
 
   const onFormSubmit = handleSubmit(async (data) => {
     setIsSubmitting(true)
+    setCreationError(undefined)
+
+    let hasError = false
 
     try {
       const selectedChain = chain ?? replayableChains?.find((config) => config.chainId === data.chainId)
@@ -88,6 +115,7 @@ const ReplaySafeDialog = ({
       const predictedAddress = await predictAddressBasedOnReplayData(safeCreationData, provider)
       if (!sameAddress(safeAddress, predictedAddress)) {
         setCreationError(new Error('The replayed Safe leads to an unexpected address'))
+        hasError = true
         return
       }
 
@@ -95,23 +123,53 @@ const ReplaySafeDialog = ({
 
       trackEvent({ ...OVERVIEW_EVENTS.SUBMIT_ADD_NEW_NETWORK, label: selectedChain.chainId })
 
-      // 2. Replay Safe creation and add it to the counterfactual Safes
-      replayCounterfactualSafeDeployment?.(
-        selectedChain.chainId,
+      // 2. Persist to backend (if authenticated) + add to Redux. Shared code
+      //    path with the initial create-safe flow so any future backend write
+      //    added to one path is automatically covered for the other.
+      const persistResult = await persistCounterfactualSafe({
+        chainId: selectedChain.chainId,
         safeAddress,
-        safeCreationData,
-        currentName || '',
+        props: safeCreationData,
+        name: currentName || '',
+        payMethod: PayMethod.PayLater,
+        spaceId,
+        isUserAuthenticated,
+        isAdminOfActiveSpace,
+        spaceSafeCount,
+        spaceSafeLimit,
+        holdsSeatInSpace,
+        provider,
         dispatch,
-        PayMethod.PayLater,
-      )
+      })
+      if (!persistResult.ok) {
+        if (persistResult.stepUpPending) {
+          // Nothing to show, but the dialog must not close as if the network had been added.
+          hasError = true
+          return
+        }
+        setCreationError(persistResult.error)
+        hasError = true
+        dispatch(
+          showNotification({
+            variant: 'error',
+            groupKey: 'replay-safe-error',
+            message: persistResult.error.message,
+          }),
+        )
+        return
+      }
 
-      trackEvent({ ...OVERVIEW_EVENTS.PROCEED_WITH_TX, label: 'counterfactual', category: CREATE_SAFE_CATEGORY })
-      trackEvent({ ...CREATE_SAFE_EVENTS.CREATED_SAFE, label: 'counterfactual' })
+      // Don't report a creation for Safes that were already deployed.
+      if (persistResult.skipped !== 'already-deployed') {
+        trackEvent({ ...OVERVIEW_EVENTS.PROCEED_WITH_TX, label: 'counterfactual', category: CREATE_SAFE_CATEGORY })
+        trackEvent({ ...CREATE_SAFE_EVENTS.CREATED_SAFE, label: 'counterfactual' })
+      }
 
       router.push({
         pathname: UNDEPLOYED_SAFE_BLOCKED_ROUTES.includes(router.pathname) ? AppRoutes.home : router.pathname,
         query: {
           safe: `${selectedChain.shortName}:${safeAddress}`,
+          ...(spaceId && { spaceId }),
         },
       })
 
@@ -134,23 +192,32 @@ const ReplaySafeDialog = ({
         showNotification({
           variant: 'success',
           groupKey: 'replay-safe-success',
-          message: `Successfully added your account on ${selectedChain.chainName}`,
+          message:
+            persistResult.skipped === 'already-deployed'
+              ? `This account is already deployed on ${selectedChain.chainName}`
+              : `Successfully added your account on ${selectedChain.chainName}`,
         }),
       )
     } catch (err) {
       console.error(err)
+      setCreationError(err instanceof Error ? err : new Error('Failed to add the account on the selected network'))
+      hasError = true
     } finally {
       setIsSubmitting(false)
 
-      // Close modal
-      onClose()
+      // Keep the dialog open on error so the inline message stays visible
+      if (!hasError) {
+        onClose()
+      }
     }
   })
 
+  // Before the creation data loads, submitting would close the dialog without adding the network.
   const submitDisabled =
     isUnsupportedSafeCreationVersion ||
     !!safeCreationDataError ||
     safeCreationDataLoading ||
+    !safeCreationData ||
     !formState.isValid ||
     isSubmitting
 
@@ -160,22 +227,15 @@ const ReplaySafeDialog = ({
   return (
     <ModalDialog open={open} onClose={onClose} dialogTitle="Add another network" hideChainIndicator>
       <form onSubmit={onFormSubmit} id="recreate-safe">
-        <DialogContent data-testid="add-chain-dialog">
+        <div className="px-6 py-4" data-testid="add-chain-dialog">
           <FormProvider {...formMethods}>
-            <Stack spacing={2}>
+            <div className="flex flex-col gap-4">
               <Typography>Add this Safe to another network with the same address.</Typography>
 
               {chain && (
-                <Box
-                  data-testid="added-network"
-                  sx={{
-                    p: 2,
-                    backgroundColor: 'background.main',
-                    borderRadius: '6px',
-                  }}
-                >
+                <div data-testid="added-network" className="rounded-md bg-[var(--color-background-main)] p-4">
                   <ChainIndicator chainId={chain.chainId} />
-                </Box>
+                </div>
               )}
 
               <ErrorMessage level="info">
@@ -183,17 +243,20 @@ const ReplaySafeDialog = ({
                 Safe&apos;s version will not be reflected in the copy.
               </ErrorMessage>
 
+              {willStayOutsideSpace && (
+                <div data-testid="space-seat-limit-notice">
+                  <ErrorMessage level="info">
+                    This Workspace is at its limit of {spaceSafeLimit} Safe accounts. The new network will be added in
+                    My accounts, outside the Workspace.
+                  </ErrorMessage>
+                </div>
+              )}
+
               {safeCreationDataLoading ? (
-                <Stack
-                  direction="column"
-                  sx={{
-                    alignItems: 'center',
-                    gap: 1,
-                  }}
-                >
-                  <CircularProgress />
-                  <Typography variant="body2">Loading Safe data</Typography>
-                </Stack>
+                <div className="flex flex-col items-center gap-2">
+                  <Spinner className="size-10" />
+                  <Typography variant="paragraph-small">Loading Safe data</Typography>
+                </div>
               ) : safeCreationDataError ? (
                 <ErrorMessage error={safeCreationDataError} level="error">
                   Could not determine the Safe creation parameters.
@@ -218,38 +281,31 @@ const ReplaySafeDialog = ({
 
               {creationError && (
                 <ErrorMessage error={creationError} level="error">
-                  The Safe could not be created with the same address.
+                  {creationError.message || 'The Safe could not be created with the same address.'}
                 </ErrorMessage>
               )}
-            </Stack>
+            </div>
           </FormProvider>
-        </DialogContent>
-        <DialogActions>
+        </div>
+        <div className="flex w-full items-center justify-between gap-2 border-t border-[var(--color-border-light)] px-6 py-4">
           {isUnsupportedSafeCreationVersion ? (
-            <Box
-              sx={{
-                display: 'flex',
-                width: '100%',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <ExternalLink sx={{ flexGrow: 1 }} href={MULTICHAIN_HELP_ARTICLE}>
+            <>
+              <ExternalLink className="grow" href={MULTICHAIN_HELP_ARTICLE}>
                 Read more
               </ExternalLink>
-              <Button variant="contained" onClick={onClose}>
-                Got it
-              </Button>
-            </Box>
+              <Button onClick={onClose}>Got it</Button>
+            </>
           ) : (
             <>
-              <Button onClick={onCancel}>Cancel</Button>
-              <Button data-testid="modal-add-network-btn" type="submit" variant="contained" disabled={submitDisabled}>
-                {isSubmitting ? <CircularProgress size={20} /> : 'Add network'}
+              <Button variant="ghost" onClick={onCancel}>
+                Cancel
+              </Button>
+              <Button data-testid="modal-add-network-btn" type="submit" disabled={submitDisabled}>
+                {isSubmitting ? <Spinner className="size-5" /> : 'Add network'}
               </Button>
             </>
           )}
-        </DialogActions>
+        </div>
       </form>
     </ModalDialog>
   )

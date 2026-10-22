@@ -14,11 +14,11 @@ This branch (`oryy`) contains branding customizations on top of the Safe Wallet 
 
 ### Branding (logo, welcome page text)
 
-- `apps/web/src/components/common/Header/index.tsx` — shows BRAND_LOGO on mobile + desktop for non-official hosts
-- `apps/web/src/components/common/Header/styles.module.css` — `filter: invert(1)` for img logos in dark mode
-- `apps/web/src/components/welcome/NewSafe.tsx` — uses BRAND_LOGO instead of Safe Labs logo, updated tagline
-- `apps/web/src/components/welcome/WelcomeLogin/index.tsx` — removed "Safe" from account description text
-- `apps/web/src/components/welcome/styles.module.css` — purple gradient on welcome right panel
+- `apps/web/src/components/common/SafeLogo/index.tsx` — shows BRAND_LOGO (inverted in dark mode) instead of the Safe mark for non-official hosts
+- `apps/web/src/styles/shadcn.css` — also overrides dark `--accent` with a purple tint
+- `packages/theme/src/generators/tamagui.test.ts` — expectations updated to brand primaries
+
+Upstream v1.104.0 removed the old `Header` and `welcome/*` components (replaced by the spaces-based welcome flow), so the old tagline/gradient customizations no longer apply.
 
 ## Environment Variables (set in Vercel + .env.local)
 

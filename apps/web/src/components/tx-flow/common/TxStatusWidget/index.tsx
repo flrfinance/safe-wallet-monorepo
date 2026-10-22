@@ -1,25 +1,30 @@
 import type { Transaction } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
 import { TransactionStatus } from '@safe-global/store/gateway/types'
-import { useContext } from 'react'
-import { List, ListItem, ListItemIcon, Paper, styled, Typography } from '@mui/material'
+import { useContext, type ReactNode } from 'react'
 import CreatedIcon from '@/public/images/messages/created.svg'
 import SignedIcon from '@/public/images/messages/signed.svg'
 import useSafeInfo from '@/hooks/useSafeInfo'
-import { isMultisigExecutionInfo, isSignableBy, isConfirmableBy } from '@/utils/transaction-guards'
+import { isMultisigExecutionInfo, isSignableBy, isConfirmableBy, isOneSignatureShort } from '@/utils/transaction-guards'
 import classnames from 'classnames'
+import { cn } from '@safe-global/views/utils/cn'
 import css from './styles.module.css'
 import useWallet from '@/hooks/wallets/useWallet'
 import { SafeTxContext } from '@/components/tx-flow/SafeTxProvider'
 import useIsSafeOwner from '@/hooks/useIsSafeOwner'
 import { useIsWalletProposer } from '@/hooks/useProposers'
+import { useAlreadySigned } from '@/components/tx/shared/hooks'
 
-const StatusLabel = styled(Typography)(({ theme }) => ({
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  letterSpacing: 1,
-  ...theme.typography.caption,
-}))
+/* Between 900px and 1200px the rail collapses to icons only so the transaction card — the point of
+   the screen — keeps its width instead of the header wrapping mid-word. `sr-only` rather than
+   `hidden` so the step names stay in the accessibility tree at every width. Below 900px
+   TxLayoutBase drops the rail entirely. */
+const StatusLabel = ({ children, className }: { children: ReactNode; className?: string }) => (
+  <span
+    className={cn('sr-only min-[1200px]:not-sr-only min-[1200px]:truncate text-xs leading-4 font-normal', className)}
+  >
+    {children}
+  </span>
+)
 
 const TxStatusWidget = ({
   txSummary,
@@ -34,7 +39,7 @@ const TxStatusWidget = ({
 }) => {
   const wallet = useWallet()
   const { safe } = useSafeInfo()
-  const { nonceNeeded } = useContext(SafeTxContext)
+  const { nonceNeeded, safeTx } = useContext(SafeTxContext)
   const { threshold } = safe
   const isSafeOwner = useIsSafeOwner()
   const isProposer = useIsWalletProposer()
@@ -49,22 +54,24 @@ const TxStatusWidget = ({
     : safe.threshold === 1 && !isProposing
 
   const canSign = txSummary ? isSignableBy(txSummary, wallet?.address || '') : !isProposing
+  const hasSigned = useAlreadySigned(safeTx)
+  const showSignStep = canSign && isOneSignatureShort(confirmationsSubmitted, threshold) && !isBatch && !isMessage
 
   return (
-    <Paper sx={{ backgroundColor: 'transparent' }}>
-      <List className={css.status}>
-        <ListItem>
-          <ListItemIcon>
+    <div className="bg-transparent">
+      <ul className={css.status}>
+        <li className={css.item}>
+          <span className={css.itemIcon}>
             <CreatedIcon />
-          </ListItemIcon>
+          </span>
 
           <StatusLabel>{isBatch ? 'Queue transactions' : 'Create'}</StatusLabel>
-        </ListItem>
+        </li>
 
-        <ListItem className={classnames({ [css.incomplete]: !canConfirm && !isBatch })}>
-          <ListItemIcon>
+        <li className={classnames(css.item, { [css.incomplete]: !canConfirm && !isBatch })}>
+          <span className={css.itemIcon}>
             <SignedIcon />
-          </ListItemIcon>
+          </span>
 
           <StatusLabel>
             {isBatch ? (
@@ -75,26 +82,31 @@ const TxStatusWidget = ({
               'Collect signatures'
             ) : (
               <>
-                Confirmed ({confirmationsSubmitted} of {threshold})
-                {canSign && (
-                  <Typography variant="caption" component="span" className={css.badge}>
-                    +1
-                  </Typography>
-                )}
+                Confirmed ({confirmationsSubmitted} of {threshold}){canSign && <span className={css.badge}>+1</span>}
               </>
             )}
           </StatusLabel>
-        </ListItem>
+        </li>
 
-        <ListItem className={classnames({ [css.incomplete]: !(isAwaitingExecution && isLastStep) })}>
-          <ListItemIcon>
+        {showSignStep && (
+          <li className={classnames(css.item, { [css.incomplete]: !hasSigned })}>
+            <span className={css.itemIcon}>
+              <SignedIcon />
+            </span>
+
+            <StatusLabel>Sign</StatusLabel>
+          </li>
+        )}
+
+        <li className={classnames(css.item, { [css.incomplete]: !(isAwaitingExecution && isLastStep) })}>
+          <span className={css.itemIcon}>
             <SignedIcon />
-          </ListItemIcon>
+          </span>
 
           <StatusLabel>{isMessage ? 'Done' : 'Execute'}</StatusLabel>
-        </ListItem>
-      </List>
-    </Paper>
+        </li>
+      </ul>
+    </div>
   )
 }
 

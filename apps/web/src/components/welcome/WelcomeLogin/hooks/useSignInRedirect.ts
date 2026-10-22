@@ -13,13 +13,23 @@ interface UseSignInRedirectProps {
   inviteAmount: number
   isSpacesLoading: boolean
   error: RtkError | undefined
+  // When the signed-in user has exactly one active space, jump straight to it
+  // after sign-in instead of leaving them on the workspace list. Pass null when
+  // there are zero or multiple active spaces.
+  singleSpaceId?: string | null
+  // The `spaceId` URL param if the user is an active member (e.g. a Workspace link sent here for
+  // sign-in by the route guard). It wins over singleSpaceId and pending invites.
+  requestedSpaceId?: string | null
 }
 
-const hasNotFoundSpaces = (error?: RtkError) => {
-  return error && 'status' in error && error.status === 404
-}
-
-export const useSignInRedirect = ({ spacesAmount, inviteAmount, isSpacesLoading, error }: UseSignInRedirectProps) => {
+export const useSignInRedirect = ({
+  spacesAmount,
+  inviteAmount,
+  isSpacesLoading,
+  error,
+  singleSpaceId,
+  requestedSpaceId,
+}: UseSignInRedirectProps) => {
   const [hasSignedIn, setHasSignedIn] = useState(false)
   const router = useRouter()
   const [redirectLoading, setRedirectLoading] = useState(false)
@@ -38,15 +48,38 @@ export const useSignInRedirect = ({ spacesAmount, inviteAmount, isSpacesLoading,
   }, [isOidcLoginPending, isUserSignedIn])
 
   useEffect(() => {
-    const isNewUser = !inviteAmount && !isSpacesLoading && spacesAmount === 0 && isUserSignedIn
+    // A new user (no active spaces) is no longer pushed into the create-workspace
+    // flow — they stay on the Workspaces tab and see the "Create your first
+    // workspace" card. Any spaces-query error keeps them there too.
+    if (error) return
 
-    if (error && !hasNotFoundSpaces(error)) return
+    if (hasSignedIn && isUserSignedIn && !isSpacesLoading && spacesAmount > 0) {
+      if (requestedSpaceId) {
+        setRedirectLoading(true)
+        router.push({ pathname: AppRoutes.spaces.index, query: { spaceId: requestedSpaceId } })
+        return
+      }
 
-    if (hasSignedIn && (isNewUser || hasNotFoundSpaces(error))) {
-      setRedirectLoading(true)
-      router.push({ pathname: AppRoutes.welcome.createSpace, query: router.query })
+      // If the user has exactly one space, jump straight to it. Falling back to
+      // the workspace list (i.e. leaving the user on /welcome/spaces) is
+      // intentional only when there are multiple to choose between, or when
+      // there are pending invites the user should see.
+      if (singleSpaceId && inviteAmount === 0) {
+        setRedirectLoading(true)
+        router.push({ pathname: AppRoutes.spaces.index, query: { spaceId: singleSpaceId } })
+      }
     }
-  }, [hasSignedIn, isSpacesLoading, spacesAmount, inviteAmount, isUserSignedIn, error])
+  }, [
+    hasSignedIn,
+    isSpacesLoading,
+    spacesAmount,
+    inviteAmount,
+    isUserSignedIn,
+    error,
+    singleSpaceId,
+    requestedSpaceId,
+    router,
+  ])
 
   return { setHasSignedIn, redirectLoading }
 }

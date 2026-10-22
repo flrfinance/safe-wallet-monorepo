@@ -1,9 +1,7 @@
 import { useContext, useEffect, useState, type ReactElement } from 'react'
 import classnames from 'classnames'
-import { AnimatePresence, motion } from 'motion/react'
-
 import Topbar from '@/components/common/Header/Topbar'
-import { useIsSpaceRoute } from '@/hooks/useIsSpaceRoute'
+import SafeLogo from '@/components/common/SafeLogo'
 import css from './styles.module.css'
 import SafeLoadingError from '../SafeLoadingError'
 import Footer from '../Footer'
@@ -19,41 +17,56 @@ import { useParentSafe } from '@/hooks/useParentSafe'
 import { useRouterGuard } from '@/hooks/useRouterGuard'
 import { useFlowActivationGuard } from '@/hooks/useRouterGuard/activationGuards/useFlowActivationGuard'
 import { useKeyboardObserver } from '@/hooks/useKeyboardObserver'
-import { useIsTopbarElevated } from '@/hooks/useTopbarElevation'
+import { useIsTopbarElevated, useIsTopbarAboveOverlay } from '@/hooks/useTopbarElevation'
+import { useCssHeightVar } from '@/hooks/useCssHeightVar'
 
 const ONBOARDING_ROUTES = [
   AppRoutes.welcome.createSpace,
   AppRoutes.welcome.selectSafes,
   AppRoutes.welcome.inviteMembers,
+  AppRoutes.welcome.survey,
 ]
 
+const STATIC_PAGE_ROUTES = [AppRoutes.licenses, AppRoutes.imprint, AppRoutes.cookie]
+
 const NO_HEADER_ROUTES = [
-  AppRoutes.safeLabsTerms,
   AppRoutes.welcome.index,
   AppRoutes.welcome.createSpace,
   AppRoutes.welcome.selectSafes,
   AppRoutes.welcome.inviteMembers,
+  AppRoutes.welcome.survey,
   AppRoutes.spaces.createSpace,
+  ...STATIC_PAGE_ROUTES,
 ]
+
+// The two tabbed welcome landing pages (Workspaces + Trusted accounts) share a
+// soft brand-green glow behind their content.
+const WELCOME_LIST_ROUTES = [AppRoutes.welcome.accounts, AppRoutes.welcome.spaces]
 
 const PageLayout = ({ pathname, children }: { pathname: string; children: ReactElement }): ReactElement => {
   const [isSidebarRoute, isAnimated] = useIsSidebarRoute(pathname)
   const [isSidebarOpen, setSidebarOpen] = useState<boolean>(true)
-  const [isSpacesSidebarExpanded, setSpacesSidebarExpanded] = useState<boolean>(true)
+  const [isSidebarExpanded, setSidebarExpanded] = useState<boolean>(true)
   const [isBatchOpen, setBatchOpen] = useState<boolean>(false)
   const { txFlow, setFullWidth } = useContext(TxModalContext)
   const { BatchSidebar } = useLoadFeature(BatchingFeature)
-  const { SelectSafeModal } = useLoadFeature(SpacesFeature)
-  const isSafeLabsTermsPage = pathname === AppRoutes.safeLabsTerms
+  const { SelectSafeModal, SafeWorkspaceSignInDialog } = useLoadFeature(SpacesFeature)
+  const isStaticPage = STATIC_PAGE_ROUTES.includes(pathname)
   const hideHeader = NO_HEADER_ROUTES.includes(pathname)
   const isOnboardingRoute = ONBOARDING_ROUTES.includes(pathname)
-  const isSpaceRoute = useIsSpaceRoute()
+  const isWelcomeListRoute = WELCOME_LIST_ROUTES.includes(pathname)
   const parentSafe = useParentSafe()
   const menuToggleHandler = isSidebarRoute ? setSidebarOpen : undefined
 
   useRouterGuard({ useGuard: useFlowActivationGuard })
   useKeyboardObserver()
   const isTopbarElevated = useIsTopbarElevated()
+  const isTopbarAboveOverlay = useIsTopbarAboveOverlay()
+  // The Topbar is absolutely positioned, so the content reserves space for it via the
+  // `--topbar-height` CSS var. That height is not constant: below the header's `@1100px`
+  // container query the safe selector wraps onto its own row, doubling the topbar height.
+  // A fixed reserve then lets the topbar overlap the page (WA: dashboard cards clipped).
+  const setTopbarNode = useCssHeightVar('--topbar-height')
 
   // Hide sidebar when transaction flow is open
   const isSidebarVisible = isSidebarOpen && !txFlow
@@ -64,15 +77,9 @@ const PageLayout = ({ pathname, children }: { pathname: string; children: ReactE
 
   return (
     <>
-      {!hideHeader && (
-        <div
-          className={classnames(css.topbar, {
-            [css.topbarCollapsed]: isSpaceRoute && !isSpacesSidebarExpanded,
-            [css.topbarNoSidebar]: !isSidebarVisible || !isSidebarRoute,
-            [css.topbarElevated]: isTopbarElevated,
-          })}
-        >
-          <Topbar onMenuToggle={menuToggleHandler} onBatchToggle={setBatchOpen} />
+      {isStaticPage && (
+        <div className="px-6 py-4">
+          <SafeLogo />
         </div>
       )}
 
@@ -80,7 +87,8 @@ const PageLayout = ({ pathname, children }: { pathname: string; children: ReactE
         <SideDrawer
           isOpen={isSidebarVisible}
           onToggle={setSidebarOpen}
-          onSidebarOpenChange={isSpaceRoute ? setSpacesSidebarExpanded : undefined}
+          onSidebarOpenChange={setSidebarExpanded}
+          isSidebarExpanded={isSidebarExpanded}
         />
       ) : null}
 
@@ -90,37 +98,42 @@ const PageLayout = ({ pathname, children }: { pathname: string; children: ReactE
           [css.mainAnimated]: isSidebarRoute && isAnimated,
           [css.mainNoHeader]: hideHeader,
           [css.mainSpace]: !hideHeader,
-          [css.mainSpaceCollapsed]: isSpaceRoute && !isSpacesSidebarExpanded,
+          [css.mainSidebarCollapsed]: isSidebarRoute && isSidebarVisible && !isSidebarExpanded,
         })}
       >
-        <div className={css.content}>
+        {!hideHeader && (
+          <div
+            ref={setTopbarNode}
+            className={classnames(css.topbar, {
+              [css.topbarElevated]: isTopbarElevated,
+              [css.topbarAboveOverlay]: isTopbarAboveOverlay,
+              // The topbar is absolutely positioned, so it can't inherit `.main`'s sidebar
+              // offset — it has to reproduce it. Keep these conditions identical to the
+              // `mainNoSidebar` / `mainSidebarCollapsed` ones below or the header drifts out
+              // of alignment with the page content underneath it.
+              [css.topbarNoSidebar]: !isSidebarVisible || !isSidebarRoute,
+              [css.topbarCollapsed]: isSidebarRoute && isSidebarVisible && !isSidebarExpanded,
+            })}
+          >
+            <Topbar onMenuToggle={menuToggleHandler} onBatchToggle={setBatchOpen} />
+          </div>
+        )}
+
+        <div className={classnames(css.content, { [css.welcomeGlow]: isWelcomeListRoute })}>
           <SafeLoadingError>
             {!hideHeader && parentSafe && <Breadcrumbs />}
-            {isOnboardingRoute ? (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={pathname}
-                  className={css.onboardingMotion}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.6, delay: 0.2, ease: 'easeInOut' }}
-                >
-                  {children}
-                </motion.div>
-              </AnimatePresence>
-            ) : (
-              children
-            )}
+
+            {isOnboardingRoute ? <div className={css.onboardingMotion}>{children}</div> : children}
           </SafeLoadingError>
         </div>
 
         <BatchSidebar isOpen={isBatchOpen} onToggle={setBatchOpen} />
 
-        {!isSafeLabsTermsPage && <Footer />}
+        <Footer />
       </div>
 
       <SelectSafeModal />
+      <SafeWorkspaceSignInDialog />
     </>
   )
 }

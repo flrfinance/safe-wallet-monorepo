@@ -4,12 +4,15 @@ import * as navigation from '../pages/navigation.page'
 import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import * as wallet from '../../support/utils/wallet.js'
 import { getMockAddress } from '../../support/utils/ethers.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let safeAppSafes = []
 let iframeSelector
 
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
+let signer
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+})
 
 describe('Drain Account tests', { defaultCommandTimeout: 40000 }, () => {
   before(async () => {
@@ -28,7 +31,7 @@ describe('Drain Account tests', { defaultCommandTimeout: 40000 }, () => {
   })
 
   it('Verify drain can be created', () => {
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer)
     cy.enter(iframeSelector).then((getBody) => {
       getBody().findByLabelText(safeapps.recipientStr).type(getMockAddress())
       getBody().findAllByText(safeapps.transferEverythingStr).click()
@@ -70,6 +73,7 @@ describe('Drain Account tests', { defaultCommandTimeout: 40000 }, () => {
       getBody().findAllByText(safeapps.transferEverythingStr).click()
     })
     navigation.clickOnModalCloseBtn(0)
+    navigation.clickOnDiscardTxBtn()
     cy.enter(iframeSelector).then((getBody) => {
       getBody().findAllByText(safeapps.transferEverythingStr).should('be.visible')
     })

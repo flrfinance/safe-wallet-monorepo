@@ -24,6 +24,7 @@ export enum StatusGroup {
   THREAT = 'THREAT', // 9
   CUSTOM_CHECKS = 'CUSTOM_CHECKS', // 10
   DEADLOCK = 'DEADLOCK', // 11
+  ADDRESS_POISONING = 'ADDRESS_POISONING', // 12 — client-side look-alike check against trusted anchors
 }
 
 export type StatusGroupType<T extends StatusGroup> = {
@@ -31,9 +32,7 @@ export type StatusGroupType<T extends StatusGroup> = {
   [StatusGroup.ADDRESS_BOOK]: RecipientStatus.KNOWN_RECIPIENT | RecipientStatus.UNKNOWN_RECIPIENT
   [StatusGroup.RECIPIENT_ACTIVITY]: RecipientStatus.LOW_ACTIVITY | CommonSharedStatus.FAILED
   [StatusGroup.RECIPIENT_INTERACTION]:
-    | RecipientStatus.NEW_RECIPIENT
-    | RecipientStatus.RECURRING_RECIPIENT
-    | CommonSharedStatus.FAILED
+    RecipientStatus.NEW_RECIPIENT | RecipientStatus.RECURRING_RECIPIENT | CommonSharedStatus.FAILED
   [StatusGroup.BRIDGE]:
     | BridgeStatus.INCOMPATIBLE_SAFE
     | BridgeStatus.MISSING_OWNERSHIP
@@ -47,9 +46,7 @@ export type StatusGroupType<T extends StatusGroup> = {
     | ContractStatus.VERIFICATION_UNAVAILABLE
     | CommonSharedStatus.FAILED
   [StatusGroup.CONTRACT_INTERACTION]:
-    | ContractStatus.KNOWN_CONTRACT
-    | ContractStatus.NEW_CONTRACT
-    | CommonSharedStatus.FAILED
+    ContractStatus.KNOWN_CONTRACT | ContractStatus.NEW_CONTRACT | CommonSharedStatus.FAILED
   [StatusGroup.DELEGATECALL]: ContractStatus.UNEXPECTED_DELEGATECALL | CommonSharedStatus.FAILED
   [StatusGroup.FALLBACK_HANDLER]: ContractStatus.UNOFFICIAL_FALLBACK_HANDLER | CommonSharedStatus.FAILED
   [StatusGroup.THREAT]:
@@ -60,12 +57,12 @@ export type StatusGroupType<T extends StatusGroup> = {
     | ThreatStatus.OWNERSHIP_CHANGE
     | ThreatStatus.MODULE_CHANGE
     | ThreatStatus.HYPERNATIVE_GUARD
+    | ThreatStatus.INVALID_GUARD
     | CommonSharedStatus.FAILED
   [StatusGroup.CUSTOM_CHECKS]: ThreatStatus.NO_THREAT | ThreatStatus.CUSTOM_CHECKS_FAILED
   [StatusGroup.DEADLOCK]:
-    | DeadlockStatus.DEADLOCK_DETECTED
-    | DeadlockStatus.NESTED_SAFE_WARNING
-    | CommonSharedStatus.FAILED
+    DeadlockStatus.DEADLOCK_DETECTED | DeadlockStatus.NESTED_SAFE_WARNING | CommonSharedStatus.FAILED
+  [StatusGroup.ADDRESS_POISONING]: RecipientStatus.RESEMBLES_TRUSTED_ADDRESS
 }[T]
 
 export enum RecipientStatus {
@@ -74,6 +71,9 @@ export enum RecipientStatus {
   LOW_ACTIVITY = 'LOW_ACTIVITY', // 2
   NEW_RECIPIENT = 'NEW_RECIPIENT', // 3A
   RECURRING_RECIPIENT = 'RECURRING_RECIPIENT', // 3B
+  // Client-side address-poisoning check against trusted anchors (no backend counterpart).
+  // Any front- or back-end resemblance is treated as a single CRITICAL state.
+  RESEMBLES_TRUSTED_ADDRESS = 'RESEMBLES_TRUSTED_ADDRESS',
 }
 
 export enum BridgeStatus {
@@ -103,6 +103,8 @@ export enum ThreatStatus {
   OWNERSHIP_CHANGE = 'OWNERSHIP_CHANGE', // 9F
   MODULE_CHANGE = 'MODULE_CHANGE', // 9G
   HYPERNATIVE_GUARD = 'HYPERNATIVE_GUARD', // used only for Safes with Hypernative Guard installed
+  // 9I — client-side check: setGuard target does not implement the Guard interface (bricks pre-1.4.1 Safes)
+  INVALID_GUARD = 'INVALID_GUARD',
 }
 
 export enum DeadlockStatus {
@@ -128,12 +130,7 @@ export type SafeAnalysisResult = {
 }
 
 export type AnyStatus =
-  | RecipientStatus
-  | BridgeStatus
-  | ContractStatus
-  | ThreatStatus
-  | DeadlockStatus
-  | CommonSharedStatus
+  RecipientStatus | BridgeStatus | ContractStatus | ThreatStatus | DeadlockStatus | CommonSharedStatus
 
 export type AnalysisResult<T extends AnyStatus = AnyStatus> = {
   severity: Severity
@@ -188,8 +185,7 @@ export type UnofficialFallbackHandlerAnalysisResult = AnalysisResult<ContractSta
 }
 
 export type FallbackHandlerAnalysisResult =
-  | UnofficialFallbackHandlerAnalysisResult
-  | AnalysisResult<CommonSharedStatus.FAILED>
+  UnofficialFallbackHandlerAnalysisResult | AnalysisResult<CommonSharedStatus.FAILED>
 
 export type GroupedAnalysisResults<G extends StatusGroup = StatusGroup> = {
   [K in Exclude<G, StatusGroup.THREAT | StatusGroup.FALLBACK_HANDLER | StatusGroup.CUSTOM_CHECKS>]?: AnalysisResult<
@@ -207,6 +203,7 @@ export type RecipientAnalysisResults = {
     | StatusGroup.RECIPIENT_ACTIVITY
     | StatusGroup.RECIPIENT_INTERACTION
     | StatusGroup.BRIDGE
+    | StatusGroup.ADDRESS_POISONING
     | StatusGroup.COMMON
   > & {
     isSafe?: boolean

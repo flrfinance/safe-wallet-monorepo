@@ -1,11 +1,14 @@
 import { useForm, FormProvider } from 'react-hook-form'
-import { Paper, Grid, Typography, Button } from '@mui/material'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Typography } from '@safe-global/views/components/ui/typography'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { selectSettings, setRpc, setTenderly } from '@/store/settingsSlice'
 import useChainId from '@/hooks/useChainId'
 import { SETTINGS_EVENTS, trackEvent } from '@/services/analytics'
 import RpcProviderSection from './RpcProviderSection'
 import TenderlySection from './TenderlySection'
+import SettingsCard from '@safe-global/views/components/settings/SettingsCard'
+import { reloadPage } from '@/utils/navigation'
 
 export enum EnvVariablesField {
   rpc = 'rpc',
@@ -33,7 +36,7 @@ const EnvironmentVariables = () => {
     },
   })
 
-  const { handleSubmit, setValue, watch } = formMethods
+  const { handleSubmit, setValue, trigger, watch } = formMethods
 
   const rpc = watch(EnvVariablesField.rpc)
   const tenderlyURL = watch(EnvVariablesField.tenderlyURL)
@@ -51,68 +54,44 @@ const EnvironmentVariables = () => {
 
     dispatch(
       setTenderly({
-        url: data[EnvVariablesField.tenderlyURL],
+        url: data[EnvVariablesField.tenderlyURL].replace(/\/$/, ''),
         accessToken: data[EnvVariablesField.tenderlyToken],
       }),
     )
 
-    location.reload()
+    reloadPage()
   })
 
   const onResetRpc = () => setValue(EnvVariablesField.rpc, '')
-  const onResetTenderlyUrl = () => setValue(EnvVariablesField.tenderlyURL, '')
+  const onResetTenderlyUrl = () => {
+    setValue(EnvVariablesField.tenderlyURL, '', { shouldValidate: true })
+    trigger(EnvVariablesField.tenderlyToken)
+  }
   const onResetTenderlyToken = () => setValue(EnvVariablesField.tenderlyToken, '')
 
   return (
-    <Paper sx={{ padding: 4 }}>
-      <Grid
-        container
-        direction="row"
-        spacing={3}
-        sx={{
-          justifyContent: 'space-between',
-          mb: 2,
-        }}
-      >
-        <Grid item lg={4} xs={12}>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 700,
-            }}
-          >
-            Environment variables
-          </Typography>
-        </Grid>
+    <SettingsCard title="Environment variables" contentClassName="mb-4">
+      <Typography className="mb-6">
+        You can override some of our default APIs here in case you need to. Proceed at your own risk.
+      </Typography>
 
-        <Grid item xs>
-          <Typography
-            sx={{
-              mb: 3,
-            }}
-          >
-            You can override some of our default APIs here in case you need to. Proceed at your own risk.
-          </Typography>
+      <FormProvider {...formMethods}>
+        <form onSubmit={onSubmit}>
+          <RpcProviderSection onReset={onResetRpc} showResetButton={!!rpc} />
 
-          <FormProvider {...formMethods}>
-            <form onSubmit={onSubmit}>
-              <RpcProviderSection onReset={onResetRpc} showResetButton={!!rpc} />
+          <TenderlySection
+            onResetUrl={onResetTenderlyUrl}
+            onResetToken={onResetTenderlyToken}
+            showResetUrlButton={!!tenderlyURL}
+            showResetTokenButton={!!tenderlyToken}
+          />
 
-              <TenderlySection
-                onResetUrl={onResetTenderlyUrl}
-                onResetToken={onResetTenderlyToken}
-                showResetUrlButton={!!tenderlyURL}
-                showResetTokenButton={!!tenderlyToken}
-              />
-
-              <Button type="submit" variant="contained" color="primary" sx={{ mt: 2 }}>
-                Save
-              </Button>
-            </form>
-          </FormProvider>
-        </Grid>
-      </Grid>
-    </Paper>
+          <Button type="submit" className="mt-8">
+            Save
+          </Button>
+        </form>
+      </FormProvider>
+    </SettingsCard>
   )
 }
 

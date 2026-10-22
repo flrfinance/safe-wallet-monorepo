@@ -9,12 +9,14 @@ import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import * as wallet from '../../support/utils/wallet.js'
 import * as createTx from '../pages/create_tx.pages.js'
 import * as owner from '../pages/owners.pages'
+import nested from '../../fixtures/nested.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
-
-const nestedSafe1Short = '0x22e5...Cf9d'
+let signer
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+})
 
 describe('Nested safes happy path tests', () => {
   before(async () => {
@@ -24,11 +26,9 @@ describe('Nested safes happy path tests', () => {
   it('Verify that batch tx appears in the Queue with create proxy action', () => {
     const safe = 'Created safe'
 
-    cy.visit(constants.transactionQueueUrl + staticSafes.SEP_STATIC_SAFE_39)
-    main.addToAppLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.nestedParentSafe39)
-    cy.reload()
-    wallet.connectSigner(signer)
-    cy.wait(5000)
+    wallet.connectSignerViaStorage(signer, constants.transactionQueueUrl + staticSafes.SEP_STATIC_SAFE_39, {
+      extraStorage: { [constants.localStorageKeys.SAFE_v2__addedSafes]: ls.addedSafes.nestedParentSafe39 },
+    })
     createTx.deleteAllTx()
 
     safeNav.clickOnNestedSafesBtn()
@@ -43,9 +43,9 @@ describe('Nested safes happy path tests', () => {
     nsafes.typeName(safe)
     nsafes.clickOnAddNextBtn()
     createTx.clickOnContinueSignTransactionBtn()
-    createTx.selectComboButtonOption('sign')
-    createTx.clickOnSignTransactionBtn()
-    createTx.clickViewTransaction()
+    createTx.signAndOpenExecuteStep()
+    createTx.clickOnExecuteLaterBtn()
+    createTx.clickOnTransactionItem(0)
     main.verifyValuesExist(createTx.transactionItem, [
       createTx.tx_status.execute,
       nsafes.nonfundAssetsActions[0],
@@ -53,6 +53,6 @@ describe('Nested safes happy path tests', () => {
     ])
     safeNav.clickOnNestedSafesBtn()
     sideBar.checkSafesCountInPopverList(1)
-    sideBar.clickOnSafeInPopover(nestedSafe1Short)
+    sideBar.clickOnSafeInPopover(nested.safe1Short)
   })
 })

@@ -13,7 +13,7 @@ const mockGetNonDeclinedSpaces = jest.fn()
 const mockUseSidebar = jest.fn()
 const mockUseIsQualifiedSafe = jest.fn()
 
-jest.mock('@/components/ui/sidebar', () => ({
+jest.mock('@safe-global/views/components/ui/sidebar', () => ({
   SidebarProvider: ({ children }: { children: ReactNode }) => <div data-testid="sidebar-provider">{children}</div>,
   useSidebar: () => mockUseSidebar(),
   Sidebar: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
@@ -32,8 +32,8 @@ jest.mock('../../SidebarTopBar', () => ({
   SidebarTopBar: () => <div data-testid="sidebar-top-bar" />,
 }))
 
-jest.mock('../../hooks/useSidebarHydrated', () => ({
-  useSidebarHydrated: () => mockUseSidebarHydrated(),
+jest.mock('@/hooks/useIsHydrated', () => ({
+  useIsHydrated: () => mockUseSidebarHydrated(),
 }))
 
 jest.mock('@/store', () => ({
@@ -69,6 +69,10 @@ jest.mock('@/features/spaces/utils', () => ({
   getNonDeclinedSpaces: (...args: unknown[]) => mockGetNonDeclinedSpaces(...args),
 }))
 
+jest.mock('@/hooks/useDarkMode', () => ({
+  useDarkMode: () => false,
+}))
+
 jest.mock('../../index', () => ({
   EnhancedSidebar: ({ type, selectedSpace }: { type: string; selectedSpace?: { name: string } }) => (
     <div data-testid="enhanced-sidebar">{`${type}:${selectedSpace?.name ?? ''}`}</div>
@@ -85,8 +89,8 @@ describe('SpacesEnhancedSidebar', () => {
     mockUseRouter.mockReturnValue({ query: { spaceId: '1' } })
     mockUseIsSpaceRoute.mockReturnValue(true)
     mockUseUsersGetWithWalletsV1Query.mockReturnValue({ currentData: { id: 1 } })
-    mockUseSpacesGetV1Query.mockReturnValue({ currentData: [{ id: 1, name: 'Core Space' }] })
-    mockGetNonDeclinedSpaces.mockReturnValue([{ id: 1, name: 'Core Space' }])
+    mockUseSpacesGetV1Query.mockReturnValue({ currentData: [{ id: 1, uuid: '1', name: 'Core Space' }] })
+    mockGetNonDeclinedSpaces.mockReturnValue([{ id: 1, uuid: '1', name: 'Core Space' }])
     mockUseIsQualifiedSafe.mockReturnValue(false)
   })
 

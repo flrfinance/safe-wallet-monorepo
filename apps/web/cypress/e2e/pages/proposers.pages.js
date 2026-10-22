@@ -1,3 +1,4 @@
+import * as constants from '../../support/constants'
 import * as main from './main.page'
 import * as addressBook from './address_book.page'
 import * as batch from './batches.pages'
@@ -5,33 +6,72 @@ import * as create_tx from './create_tx.pages'
 
 export const proposersSection = '[data-testid="proposer-section"]'
 const addProposerBtn = '[data-testid="add-proposer-btn"]'
+const safeProLock = '[data-testid="safe-pro-lock"]'
+const addingProposersLockedStr = 'Adding proposers requires Safe Pro'
 
 const deleteProposerBtn = '[data-testid="delete-proposer-btn"]'
 const editProposerBtn = '[data-testid="edit-proposer-btn"]'
 const confrimDeleteProposerBtn = '[data-testid="confirm-delete-proposer-btn"]'
 const submitProposerBtn = '[data-testid="submit-proposer-btn"]'
 
-const safeAsProposerMessage = 'Cannot add Safe Account itself as proposer'
-const proposedTxMessage =
-  'This transaction was created by a Proposer. Please review and either confirm or reject it. Once confirmed, it can be finalized and executed'
+const safeAsProposerMessage = 'Cannot add Safe account itself as proposer'
+const proposedTxMessage = 'This transaction was created by a proposer. Please review and either confirm or reject it.'
 const proposerAddedMsg = 'Proposer added successfully!'
+
+const proposerColumn = 0
+const creatorColumn = 1
+
+// The section renders null until the delegates request resolves, which outruns the default 10s.
+const proposerSectionTimeout = 30000
+
+function getProposersSection() {
+  return cy.get(proposersSection, { timeout: proposerSectionTimeout })
+}
+
+function getProposerRow(address) {
+  return getProposersSection().find(addressBook.tableRow).contains(address).parents('tr')
+}
+
+// `should` with a callback retries, unlike the `each`-plus-flag it replaces: proposer names arrive
+// from the address book migration a tick after the table first renders.
+function verifyColumnContains(columnIndex, values) {
+  values.forEach((value) => {
+    getProposersSection()
+      .find(addressBook.tableRow)
+      .should(($rows) => {
+        const found = $rows.toArray().some((row) => Cypress.$(row).find('td').eq(columnIndex).text().includes(value))
+        expect(found, `Value "${value}" should be found in td:eq(${columnIndex}) within proposersSection`).to.be.true
+      })
+  })
+}
 
 export function verifyPropsalStatusExists() {
   cy.get(create_tx.proposalStatus).should('exist')
 }
 
 export function verifyProposerInTxActionList(address) {
-  cy.get(create_tx.txSigner).within(() => {
+  cy.get(create_tx.transactionSideList).within(() => {
     cy.contains(address)
-    cy.get('div[style]')
-      .filter((index, element) => {
-        return element.style.backgroundImage.includes('url')
-      })
-      .should('exist')
   })
 }
 export function verifyProposedTxMsgVisible() {
   cy.contains(proposedTxMessage).should('be.visible')
+}
+
+/**
+ * Without a Workspace plan that grants policies, Safe Pro replaces the "Add proposer" button. Specs that test
+ * proposers themselves turn that gate off; call it before the visit.
+ */
+export function disableProposerGating() {
+  main.injectChainFeature({
+    chainId: constants.networkKeys.sepolia,
+    removeFlag: constants.chainFeatures.proposerGating,
+  })
+}
+
+export function verifyAddProposerIsLocked() {
+  cy.get(safeProLock).should('be.visible').and('contain', addingProposersLockedStr)
+  cy.get(addProposerBtn).should('not.exist')
 }
 
 export function clickOnAddProposerBtn() {
@@ -51,55 +91,22 @@ export function clickOnSubmitProposerBtn() {
   verifyProposerSuccessMsgDisplayed()
 }
 
+export function saveProposerName() {
+  addressBook.clickOnSaveEntryBtn()
+  cy.get(addressBook.entryDialog).should('not.exist')
+}
+
 export function checkCreatorAddress(data) {
-  cy.get(proposersSection).within(() => {
-    Object.entries(data).forEach(([key, value]) => {
-      let found = false
-      cy.get(addressBook.tableRow)
-        .each(($row) => {
-          cy.wrap($row)
-            .find('td')
-            .eq(1)
-            .then(($cell) => {
-              if ($cell.text().includes(value)) {
-                found = true
-              }
-            })
-        })
-        .then(() => {
-          expect(found, `Value "${value}" should be found in td:eq(1) within proposersSection`).to.be.true
-        })
-    })
-  })
+  verifyColumnContains(creatorColumn, data)
 }
 
 export function checkProposerData(data) {
-  cy.get(proposersSection).within(() => {
-    Object.entries(data).forEach(([key, value]) => {
-      let found = false
-
-      cy.get(addressBook.tableRow)
-        .each(($row) => {
-          cy.wrap($row)
-            .find('td')
-            .eq(0)
-            .then(($cell) => {
-              if ($cell.text().includes(value)) {
-                found = true
-              }
-            })
-        })
-        .then(() => {
-          expect(found, `Value "${value}" should be found in td:eq(0) within proposersSection`).to.be.true
-        })
-    })
-  })
+  verifyColumnContains(proposerColumn, data)
 }
 
 export function clickOnEditProposerBtn(address) {
-  cy.get(proposersSection).within(() => {
-    cy.get(addressBook.tableRow).contains(address).parents('tr').find(editProposerBtn).click()
-  })
+  getProposerRow(address).find(editProposerBtn).click()
+  cy.get(addressBook.entryDialog).should('be.visible')
 }
 
 export function confirmProposerDeletion(index) {
@@ -107,19 +114,15 @@ export function confirmProposerDeletion(index) {
 }
 
 export function deleteAllProposers() {
-  cy.get('body').then(($body) => {
-    if ($body.find(deleteProposerBtn).length > 0) {
-      cy.get(deleteProposerBtn)
-        .should('be.enabled')
-        .then(($items) => {
-          for (let i = 0; i < $items.length; i++) {
-            cy.wrap($items[i]).click({ force: true })
-            confirmProposerDeletion(0)
-          }
-        })
+  getProposersSection().then(($section) => {
+    const count = $section.find(deleteProposerBtn).length
+    for (let i = 0; i < count; i++) {
+      getProposersSection().find(deleteProposerBtn).first().should('be.enabled').click()
+      confirmProposerDeletion(0)
+      cy.get(confrimDeleteProposerBtn).should('not.exist')
     }
-    main.verifyElementsCount(deleteProposerBtn, 0)
   })
+  main.verifyElementsCount(deleteProposerBtn, 0)
 }
 
 export function verifyAddProposerBtnIsDisabled() {
@@ -138,14 +141,10 @@ export function verifyProposerSuccessMsgDisplayed() {
   cy.contains(proposerAddedMsg).should('exist')
 }
 
-export function verifyEditProposerBtnDisabled(address) {
-  cy.get(proposersSection).within(() => {
-    cy.get(addressBook.tableRow).contains(address).parents('tr').find(editProposerBtn).should('be.disabled')
-  })
+export function verifyEditProposerBtnEnabled(address) {
+  getProposerRow(address).find(editProposerBtn).should('be.enabled')
 }
 
 export function verifyDeleteProposerBtnIsDisabled(address) {
-  cy.get(proposersSection).within(() => {
-    cy.get(addressBook.tableRow).contains(address).parents('tr').find(deleteProposerBtn).should('be.disabled')
-  })
+  getProposerRow(address).find(deleteProposerBtn).should('be.disabled')
 }

@@ -1,21 +1,27 @@
 import type { MessageItem } from '@safe-global/store/gateway/AUTO_GENERATED/messages'
 import { type ReactElement } from 'react'
-import { Alert, Box, IconButton } from '@mui/material'
-import CopyIcon from '@mui/icons-material/ContentCopy'
-import TxConfirmations from '@/components/transactions/TxConfirmations'
-import { AuditRow, AuditLogHeader } from '@/components/common/AuditLog'
+import { Alert, AlertDescription, AlertSeverityIcon } from '@safe-global/views/components/ui/alert'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Copy as CopyIcon } from 'lucide-react'
+import TxConfirmations from '@safe-global/views/components/transactions/TxConfirmations'
+import { AuditLog, AuditRow, AuditLogHeader } from '@/components/common/AuditLog'
 import CopyTooltip from '@/components/common/CopyTooltip'
 import { AppRoutes } from '@/config/routes'
 import { useRouter } from 'next/router'
 import useOrigin from '@/hooks/useOrigin'
 import useAddressBook from '@/hooks/useAddressBook'
+import { withSpaceIdInUrl, useUrlSpaceId } from '@/hooks/useUrlSpaceId'
 
 const MsgAuditLog = ({ msg }: { msg: MessageItem }): ReactElement => {
   const addressBook = useAddressBook()
   const router = useRouter()
   const { safe = '' } = router.query
+  const spaceId = useUrlSpaceId()
   const origin = useOrigin()
-  const msgUrl = `${origin}${AppRoutes.transactions.msg}?safe=${safe}&messageHash=${msg.messageHash}`
+  const msgUrl = withSpaceIdInUrl(
+    `${origin}${AppRoutes.transactions.msg}?safe=${safe}&messageHash=${msg.messageHash}`,
+    spaceId,
+  )
   const { confirmations, confirmationsRequired, confirmationsSubmitted, proposedBy, creationTimestamp } = msg
   const isConfirmed = msg.status === 'CONFIRMED'
 
@@ -25,7 +31,7 @@ const MsgAuditLog = ({ msg }: { msg: MessageItem }): ReactElement => {
   const signingLabel = (idx: number) => `Signed (${idx + 1}/${confirmationsRequired})`
 
   return (
-    <Box mb={2} data-testid="msg-audit-log">
+    <AuditLog className="mb-4" data-testid="msg-audit-log">
       <AuditLogHeader
         chip={
           <TxConfirmations
@@ -35,21 +41,23 @@ const MsgAuditLog = ({ msg }: { msg: MessageItem }): ReactElement => {
         }
         actions={
           <CopyTooltip text={msgUrl} initialToolTipText="Copy message link">
-            <IconButton size="small" sx={{ color: 'inherit' }}>
-              <CopyIcon fontSize="small" />
-            </IconButton>
+            <Button variant="ghost" size="icon-xs" className="text-inherit">
+              <CopyIcon className="size-4" />
+            </Button>
           </CopyTooltip>
         }
       />
 
-      <AuditRow
-        label="Created"
-        actionType="created"
-        address={proposedBy.value}
-        name={resolveName(proposedBy.value, proposedBy.name)}
-        timestamp={creationTimestamp}
-        isLast={confirmations.length === 0 && !isConfirmed}
-      />
+      {proposedBy && (
+        <AuditRow
+          label="Created"
+          actionType="created"
+          address={proposedBy.value}
+          name={resolveName(proposedBy.value, proposedBy.name)}
+          timestamp={creationTimestamp}
+          isLast={confirmations.length === 0 && !isConfirmed}
+        />
+      )}
 
       {confirmations.map(({ owner }, idx) => (
         <AuditRow
@@ -65,11 +73,12 @@ const MsgAuditLog = ({ msg }: { msg: MessageItem }): ReactElement => {
       {isConfirmed && <AuditRow label="Confirmed" actionType="confirmed" timestamp={msg.modifiedTimestamp} isLast />}
 
       {!isConfirmed && (
-        <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
-          Can be confirmed once the threshold is reached.
+        <Alert variant="info" className="mt-4">
+          <AlertSeverityIcon variant="info" />
+          <AlertDescription>Can be confirmed once the threshold is reached.</AlertDescription>
         </Alert>
       )}
-    </Box>
+    </AuditLog>
   )
 }
 

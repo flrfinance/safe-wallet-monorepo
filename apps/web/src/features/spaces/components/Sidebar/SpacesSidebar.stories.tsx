@@ -1,18 +1,21 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import type { CSSProperties, ReactNode } from 'react'
-import { House, ArrowRightLeft, WalletCards, BookUser, UsersRound, Shield, Settings } from 'lucide-react'
-import { SidebarProvider, Sidebar, SidebarHeader } from '@/components/ui/sidebar'
+import { House, ArrowRightLeft, WalletCards, BookUser, UsersRound, Shield, Settings, ListChecks } from 'lucide-react'
+import { SidebarProvider, Sidebar, SidebarHeader } from '@safe-global/views/components/ui/sidebar'
 import { AppRoutes } from '@/config/routes'
 import { withMockProvider } from '@/storybook/preview'
 import { SpacesSidebarVariant } from './variants/SpacesSidebarVariant'
 import { SidebarTopBar } from './SidebarTopBar'
 import { SidebarCommonFooter } from './SidebarCommonFooter'
-import type { SpaceItem } from './types'
-import type { ResolvedSidebarItem, ResolvedSidebarGroup } from './types'
+import type { SpaceItem } from '@safe-global/views/features/spaces/components/Sidebar/types'
+import type {
+  ResolvedSidebarNavItem,
+  ResolvedSidebarGroup,
+} from '@safe-global/views/features/spaces/components/Sidebar/types'
 
 const mockSpaceId = '1'
 
-const mockMainNavItems: ResolvedSidebarItem[] = [
+const mockMainNavItems: ResolvedSidebarNavItem[] = [
   {
     icon: House,
     label: 'Home',
@@ -32,7 +35,7 @@ const mockMainNavItems: ResolvedSidebarItem[] = [
   },
   {
     icon: WalletCards,
-    label: 'Accounts',
+    label: 'Safe accounts',
     href: AppRoutes.spaces.safeAccounts,
     isActive: false,
     disabled: false,
@@ -40,7 +43,7 @@ const mockMainNavItems: ResolvedSidebarItem[] = [
   },
   {
     icon: BookUser,
-    label: 'Address book',
+    label: 'Address Book',
     href: AppRoutes.spaces.addressBook,
     isActive: false,
     disabled: false,
@@ -51,6 +54,14 @@ const mockMainNavItems: ResolvedSidebarItem[] = [
 const mockSetupGroup: ResolvedSidebarGroup = {
   label: 'Setup',
   items: [
+    {
+      icon: ListChecks,
+      label: 'Plans',
+      href: AppRoutes.spaces.plans,
+      isActive: false,
+      disabled: false,
+      link: { pathname: AppRoutes.spaces.plans, query: { spaceId: mockSpaceId } },
+    },
     {
       icon: UsersRound,
       label: 'Team',
@@ -88,8 +99,8 @@ const mockDisabledSetupGroup: ResolvedSidebarGroup = {
 }
 
 const mockSpaces: SpaceItem[] = [
-  { id: 1, name: 'Company Space', safeCount: 0 },
-  { id: 2, name: 'Personal Space', safeCount: 0 },
+  { uuid: 'uuid-1', name: 'Company Space', safeCount: 0 },
+  { uuid: 'uuid-2', name: 'Personal Space', safeCount: 0 },
 ]
 
 const selectedSpace = mockSpaces[0]

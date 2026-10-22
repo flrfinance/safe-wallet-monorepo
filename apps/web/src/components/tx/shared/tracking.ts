@@ -4,6 +4,7 @@ import { MODALS_EVENTS, trackEvent, MixpanelEventParams } from '@/services/analy
 import { TX_EVENTS } from '@/services/analytics/events/transactions'
 import { getTransactionTrackingType } from '@/services/analytics/tx-tracking'
 import { isNestedConfirmationTxInfo } from '@/utils/transaction-guards'
+import type { GasPayer } from '@/utils/gasPayment'
 
 function getCreationEvent(args: { isParentSigner: boolean; isRoleExecution: boolean; isProposerCreation: boolean }) {
   if (args.isParentSigner) {
@@ -51,6 +52,8 @@ export function trackTxEvents(
   origin?: string,
   isMassPayout: boolean = false,
   threshold?: number,
+  gasPaymentSource?: 'safe' | 'signing_wallet',
+  gasPaymentOption?: GasPayer,
 ) {
   const isNestedConfirmation = !!details && isNestedConfirmationTxInfo(details.txInfo)
 
@@ -67,6 +70,12 @@ export function trackTxEvents(
     }
     if (threshold !== undefined) {
       properties[MixpanelEventParams.THRESHOLD] = threshold
+    }
+    if (gasPaymentSource !== undefined) {
+      properties[MixpanelEventParams.GAS_PAYMENT_SOURCE] = gasPaymentSource
+    }
+    if (gasPaymentOption !== undefined) {
+      properties[MixpanelEventParams.GAS_PAYMENT_OPTION] = gasPaymentOption
     }
     return properties
   }

@@ -7,23 +7,18 @@ import * as messages from '../pages/messages.pages.js'
 import * as msg_confirmation_modal from '../pages/modals/message_confirmation.pages.js'
 import * as navigation from '../pages/navigation.page'
 import * as spendinglimit from '../pages/spending_limits.pages'
+import notes from '../../fixtures/notes.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
 
 const sendValue = 0.00002
-const safe = 'sep:0xF184a243925Bf7fb1D64487339FF4F177Fb75644'
-
-const txs = {
-  oneOfoneTx:
-    '&id=multisig_0xF184a243925Bf7fb1D64487339FF4F177Fb75644_0xccc6945d0d674ceb45f856841bfc3991b4da27ea578ffe9652bbc6835944b323',
-}
-
-const noteCreator = 'sep:0x96D4...5aC5'
-
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
-const signer2 = walletCredentials.OWNER_1_PRIVATE_KEY
-const signerAddress = walletCredentials.OWNER_4_WALLET_ADDRESS
+let signer, signer2, signerAddress
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+  signer2 = walletCredentials.OWNER_1_PRIVATE_KEY
+  signerAddress = walletCredentials.OWNER_4_WALLET_ADDRESS
+})
 
 function happyPathToStepTwo() {
   createtx.typeRecipientAddress(constants.EOA)
@@ -38,8 +33,7 @@ describe('Transaction notes tests', () => {
   })
 
   it('Verify the tx notes field only allows 60 characters', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     happyPathToStepTwo()
@@ -47,8 +41,7 @@ describe('Transaction notes tests', () => {
   })
 
   it('Verify the tx note information message', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     happyPathToStepTwo()
@@ -56,31 +49,29 @@ describe('Transaction notes tests', () => {
   })
 
   it('Verify in the transaction details the note is visible', () => {
-    cy.visit(constants.transactionUrl + safe + txs.oneOfoneTx)
+    cy.visit(constants.transactionUrl + notes.safe + notes.oneOfoneTx)
     createtx.checkNoteRecordedNote(createtx.recordedTxNote)
   })
 
   it('Verify hovering over the note tooltip shows note originator', () => {
-    cy.visit(constants.transactionUrl + safe + txs.oneOfoneTx)
-    createtx.checkNoteCreator(noteCreator)
+    cy.visit(constants.transactionUrl + notes.safe + notes.oneOfoneTx)
+    createtx.checkNoteCreator(notes.creator)
   })
 
   it('Verify that after a tx was executed, the tx note is not editable', () => {
-    cy.visit(constants.transactionUrl + safe + txs.oneOfoneTx)
+    cy.visit(constants.transactionUrl + notes.safe + notes.oneOfoneTx)
     createtx.checkNoteRecordedNoteReadOnly()
   })
 
   it('Verify no tx note field is present when signing a message', () => {
-    cy.visit(constants.transactionsMessagesUrl + staticSafes.SEP_STATIC_SAFE_26)
-    wallet.connectSigner(signer2)
+    wallet.connectSignerViaStorage(signer2, constants.transactionsMessagesUrl + staticSafes.SEP_STATIC_SAFE_26)
     messages.clickOnMessageSignBtn(0)
     msg_confirmation_modal.verifyMessagePresent(messages.offchainMessage)
     main.verifyElementsCount(createtx.noteTextField, 0)
   })
 
   it('Verify no tx note field is present during the use of a spending limit', () => {
-    cy.visit(constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8)
     navigation.clickOnNewTxBtn()
     createtx.clickOnSendTokensBtn()
     createtx.typeRecipientAddress(constants.EOA)
@@ -91,8 +82,7 @@ describe('Transaction notes tests', () => {
   })
 
   it('Verify that in a send funds tx the note field shows up in the execution part of the form', () => {
-    cy.visit(constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8)
     navigation.clickOnNewTxBtn()
     createtx.clickOnSendTokensBtn()
     createtx.typeRecipientAddress(constants.EOA)
@@ -103,8 +93,7 @@ describe('Transaction notes tests', () => {
   })
 
   it('Verify no tx note is present during a recovery tx', () => {
-    cy.visit(constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8)
     navigation.clickOnNewTxBtn()
     createtx.clickOnSendTokensBtn()
     createtx.typeRecipientAddress(constants.EOA)

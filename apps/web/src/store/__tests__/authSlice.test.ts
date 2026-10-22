@@ -2,11 +2,15 @@ import {
   authSlice,
   setIsOidcLoginPending,
   selectIsOidcLoginPending,
+  setSessionCheckPending,
+  selectIsSessionCheckPending,
   setAuthenticated,
   setUnauthenticated,
-  setLastUsedSpace,
+  setLandingSpaceHint,
+  setCfSafeSynced,
   isAuthenticated,
-  lastUsedSpace,
+  selectLandingSpaceHint,
+  selectCfSafeSynced,
 } from '../authSlice'
 import type { RootState } from '@/store'
 
@@ -34,20 +38,27 @@ describe('authSlice', () => {
 
       expect(state.sessionExpiresAt).toBeNull()
     })
+
+    it('should reset cfSafeSynced to false', () => {
+      const syncedState = reducer(undefined, setCfSafeSynced(true))
+      const state = reducer(syncedState, setUnauthenticated())
+
+      expect(state.cfSafeSynced).toBe(false)
+    })
   })
 
-  describe('setLastUsedSpace', () => {
-    it('should set lastUsedSpace', () => {
-      const state = reducer(undefined, setLastUsedSpace('space-123'))
+  describe('setLandingSpaceHint', () => {
+    it('should set landingSpaceHint', () => {
+      const state = reducer(undefined, setLandingSpaceHint('space-123'))
 
-      expect(state.lastUsedSpace).toBe('space-123')
+      expect(state.landingSpaceHint).toBe('space-123')
     })
 
     it('should accept null', () => {
-      const withSpace = reducer(undefined, setLastUsedSpace('space-123'))
-      const state = reducer(withSpace, setLastUsedSpace(null))
+      const withSpace = reducer(undefined, setLandingSpaceHint('space-123'))
+      const state = reducer(withSpace, setLandingSpaceHint(null))
 
-      expect(state.lastUsedSpace).toBeNull()
+      expect(state.landingSpaceHint).toBeNull()
     })
   })
 
@@ -55,7 +66,7 @@ describe('authSlice', () => {
     it('returns true when session has not expired', () => {
       const futureExpiry = Date.now() + 60000
       const rootState = {
-        auth: { sessionExpiresAt: futureExpiry, lastUsedSpace: null, isStoreHydrated: false },
+        auth: { sessionExpiresAt: futureExpiry, landingSpaceHint: null, isStoreHydrated: false },
       } as unknown as RootState
 
       expect(isAuthenticated(rootState)).toBe(true)
@@ -64,7 +75,7 @@ describe('authSlice', () => {
     it('returns false when session has expired', () => {
       const pastExpiry = Date.now() - 60000
       const rootState = {
-        auth: { sessionExpiresAt: pastExpiry, lastUsedSpace: null, isStoreHydrated: false },
+        auth: { sessionExpiresAt: pastExpiry, landingSpaceHint: null, isStoreHydrated: false },
       } as unknown as RootState
 
       expect(isAuthenticated(rootState)).toBe(false)
@@ -72,20 +83,45 @@ describe('authSlice', () => {
 
     it('returns false when sessionExpiresAt is null', () => {
       const rootState = {
-        auth: { sessionExpiresAt: null, lastUsedSpace: null, isStoreHydrated: false },
+        auth: { sessionExpiresAt: null, landingSpaceHint: null, isStoreHydrated: false },
       } as unknown as RootState
 
       expect(isAuthenticated(rootState)).toBe(false)
     })
   })
 
-  describe('lastUsedSpace selector', () => {
+  describe('selectLandingSpaceHint', () => {
     it('returns the last used space', () => {
       const rootState = {
-        auth: { sessionExpiresAt: null, lastUsedSpace: 'space-abc', isStoreHydrated: false },
+        auth: { sessionExpiresAt: null, landingSpaceHint: 'space-abc', isStoreHydrated: false },
       } as unknown as RootState
 
-      expect(lastUsedSpace(rootState)).toBe('space-abc')
+      expect(selectLandingSpaceHint(rootState)).toBe('space-abc')
+    })
+  })
+
+  describe('setCfSafeSynced', () => {
+    it('should set cfSafeSynced to true', () => {
+      const state = reducer(undefined, setCfSafeSynced(true))
+
+      expect(state.cfSafeSynced).toBe(true)
+    })
+
+    it('should set cfSafeSynced to false', () => {
+      const syncedState = reducer(undefined, setCfSafeSynced(true))
+      const state = reducer(syncedState, setCfSafeSynced(false))
+
+      expect(state.cfSafeSynced).toBe(false)
+    })
+  })
+
+  describe('selectCfSafeSynced selector', () => {
+    it('returns the cfSafeSynced value', () => {
+      const rootState = {
+        auth: { sessionExpiresAt: null, landingSpaceHint: null, isStoreHydrated: false, cfSafeSynced: true },
+      } as unknown as RootState
+
+      expect(selectCfSafeSynced(rootState)).toBe(true)
     })
   })
 
@@ -107,6 +143,44 @@ describe('authSlice', () => {
       const state = authSlice.reducer(prev, setIsOidcLoginPending(false))
 
       expect(state.isOidcLoginPending).toBe(false)
+    })
+  })
+
+  describe('setSessionCheckPending', () => {
+    it('should default to false', () => {
+      const state = reducer(undefined, { type: 'unknown' })
+
+      expect(state.isSessionCheckPending).toBe(false)
+    })
+
+    it('should set isSessionCheckPending', () => {
+      const pending = reducer(undefined, setSessionCheckPending(true))
+      expect(pending.isSessionCheckPending).toBe(true)
+
+      const settled = reducer(pending, setSessionCheckPending(false))
+      expect(settled.isSessionCheckPending).toBe(false)
+    })
+
+    it('should be cleared by setAuthenticated', () => {
+      const pending = reducer(undefined, setSessionCheckPending(true))
+      const state = reducer(pending, setAuthenticated(Date.now() + 60000))
+
+      expect(state.isSessionCheckPending).toBe(false)
+    })
+
+    it('should be cleared by setUnauthenticated', () => {
+      const pending = reducer(undefined, setSessionCheckPending(true))
+      const state = reducer(pending, setUnauthenticated())
+
+      expect(state.isSessionCheckPending).toBe(false)
+    })
+  })
+
+  describe('selectIsSessionCheckPending', () => {
+    it('should return the current pending state', () => {
+      const state = reducer(undefined, setSessionCheckPending(true))
+
+      expect(selectIsSessionCheckPending({ auth: state } as unknown as RootState)).toBe(true)
     })
   })
 

@@ -1,11 +1,19 @@
 import { render, screen } from '@testing-library/react'
 import { GeoblockingContext } from '@/components/common/GeoblockingProvider'
+import { FEATURES } from '@safe-global/utils/utils/chains'
 import { SpacesSidebarContent } from '../SpacesSidebarContent'
-import type { SpaceItem, ResolvedSidebarItem, ResolvedSidebarGroup } from '../../../types'
+import type {
+  SpaceItem,
+  ResolvedSidebarNavItem,
+  ResolvedSidebarGroup,
+} from '@safe-global/views/features/spaces/components/Sidebar/types'
 
 const mockUseCurrentSpaceId = jest.fn()
 const mockUseIsActiveMember = jest.fn()
 const mockUseResolvedSidebarNav = jest.fn()
+const mockUseHasFeature = jest.fn()
+const mockUseIsSafeProAnnouncementEnabled = jest.fn<boolean, []>()
+const mockUseIsSafeProEnabled = jest.fn<boolean, []>()
 
 jest.mock('@/features/spaces/hooks/useCurrentSpaceId', () => ({
   useCurrentSpaceId: () => mockUseCurrentSpaceId(),
@@ -13,6 +21,18 @@ jest.mock('@/features/spaces/hooks/useCurrentSpaceId', () => ({
 
 jest.mock('@/features/spaces/hooks/useSpaceMembers', () => ({
   useIsActiveMember: jest.fn((spaceId) => mockUseIsActiveMember(spaceId)),
+}))
+
+jest.mock('@/hooks/useChains', () => ({
+  useHasFeature: jest.fn((feature) => mockUseHasFeature(feature)),
+}))
+
+jest.mock('@/features/safe-pro-announcement', () => ({
+  useIsSafeProAnnouncementEnabled: () => mockUseIsSafeProAnnouncementEnabled(),
+}))
+
+jest.mock('@/hooks/useIsSafeProEnabled', () => ({
+  useIsSafeProEnabled: () => mockUseIsSafeProEnabled(),
 }))
 
 jest.mock('../../../hooks/useResolvedSidebarNav', () => ({
@@ -31,10 +51,27 @@ jest.mock('../../../config', () => ({
       label: 'Transactions',
       href: '/spaces/transactions',
     },
+    {
+      icon: () => <div>Policies</div>,
+      label: 'Policies',
+      href: '/spaces/policies',
+      activeMemberOnly: true,
+    },
+    {
+      icon: () => <div>Activity</div>,
+      label: 'Activity',
+      href: '/spaces/activity',
+      activeMemberOnly: true,
+    },
   ],
   spacesSetupGroup: {
     label: 'Setup',
     items: [
+      {
+        icon: () => <div>Pro</div>,
+        label: 'Plans',
+        href: '/spaces/plans',
+      },
       {
         icon: () => <div>Team</div>,
         label: 'Team',
@@ -55,7 +92,7 @@ jest.mock('../../SpacesSidebarVariant', () => ({
     mainNavItems,
     setupGroup,
   }: {
-    mainNavItems: ResolvedSidebarItem[]
+    mainNavItems: ResolvedSidebarNavItem[]
     setupGroup: ResolvedSidebarGroup
   }) => (
     <div>
@@ -67,14 +104,14 @@ jest.mock('../../SpacesSidebarVariant', () => ({
 
 describe('SpacesSidebarContent', () => {
   const mockSpace: SpaceItem = {
-    id: 1,
+    uuid: 'uuid-1',
     name: 'Test Space',
     safeCount: 0,
   }
 
   const mockSpaces: SpaceItem[] = [
-    { id: 1, name: 'Space 1', safeCount: 0 },
-    { id: 2, name: 'Space 2', safeCount: 0 },
+    { uuid: 'uuid-1', name: 'Space 1', safeCount: 0 },
+    { uuid: 'uuid-2', name: 'Space 2', safeCount: 0 },
   ]
 
   const mockResolvedNavItems = {
@@ -110,6 +147,9 @@ describe('SpacesSidebarContent', () => {
     mockUseCurrentSpaceId.mockReturnValue('1')
     mockUseIsActiveMember.mockReturnValue(true)
     mockUseResolvedSidebarNav.mockReturnValue(mockResolvedNavItems)
+    mockUseHasFeature.mockReturnValue(true)
+    mockUseIsSafeProAnnouncementEnabled.mockReturnValue(true)
+    mockUseIsSafeProEnabled.mockReturnValue(false)
   })
 
   it('renders SpacesSidebarVariant with resolved navigation', () => {
@@ -159,6 +199,140 @@ describe('SpacesSidebarContent', () => {
     expect(screen.getByText(/Main items:/)).toBeInTheDocument()
   })
 
+  describe('SECURITY_HUB feature flag', () => {
+    it('hides the Security entry when the flag is explicitly off', () => {
+      mockUseHasFeature.mockReturnValue(false)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [, setupGroup] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(setupGroup.items.map((i: { href: string }) => i.href)).toEqual(['/spaces/plans', '/spaces/members'])
+    })
+
+    it('keeps the Security entry while the flag is undefined (chain config still loading)', () => {
+      mockUseHasFeature.mockReturnValue(undefined)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [, setupGroup] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(setupGroup.items.map((i: { href: string }) => i.href)).toContain('/spaces/security')
+    })
+
+    it('keeps the Security entry when the flag is enabled', () => {
+      mockUseHasFeature.mockReturnValue(true)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [, setupGroup] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(setupGroup.items).toHaveLength(3)
+    })
+  })
+
+  describe('Plans nav item', () => {
+    const setupHrefs = () => {
+      const [, setupGroup] = mockUseResolvedSidebarNav.mock.calls[0]
+      return setupGroup.items.map((i: { href: string }) => i.href)
+    }
+
+    it.each([
+      { name: 'Safe Pro is only announced', isAnnounced: true, isSafePro: false },
+      { name: 'Safe Pro is only live', isAnnounced: false, isSafePro: true },
+    ])('shows the Plans entry when $name', ({ isAnnounced, isSafePro }) => {
+      mockUseIsSafeProAnnouncementEnabled.mockReturnValue(isAnnounced)
+      mockUseIsSafeProEnabled.mockReturnValue(isSafePro)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      expect(setupHrefs()).toContain('/spaces/plans')
+    })
+
+    it('hides the Plans entry when both Safe Pro flags are off', () => {
+      mockUseIsSafeProAnnouncementEnabled.mockReturnValue(false)
+      mockUseIsSafeProEnabled.mockReturnValue(false)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      expect(setupHrefs()).toEqual(['/spaces/members', '/spaces/security'])
+    })
+  })
+
+  describe('SPACE_AUDIT_LOG feature flag', () => {
+    it('hides the Activity entry when the flag is explicitly off', () => {
+      mockUseHasFeature.mockImplementation((feature) => feature !== FEATURES.SPACE_AUDIT_LOG)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [mainNav] = mockUseResolvedSidebarNav.mock.calls[0]
+      // The mocked config has Home + Transactions + Policies + Activity; Activity should be dropped.
+      expect(mainNav.map((i: { href: string }) => i.href)).toEqual([
+        '/spaces',
+        '/spaces/transactions',
+        '/spaces/policies',
+      ])
+    })
+
+    it('keeps the Activity entry while the flag is undefined (chain config still loading)', () => {
+      mockUseHasFeature.mockImplementation((feature) => (feature === FEATURES.SPACE_AUDIT_LOG ? undefined : true))
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [mainNav] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(mainNav).toHaveLength(4)
+    })
+
+    it('keeps the Activity entry when the flag is enabled', () => {
+      mockUseHasFeature.mockReturnValue(true)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [mainNav] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(mainNav).toHaveLength(4)
+    })
+  })
+
+  describe('POLICIES feature flag', () => {
+    it('hides the Policies entry when the flag is explicitly off', () => {
+      mockUseHasFeature.mockImplementation((feature) => feature !== FEATURES.POLICIES)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [mainNav] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(mainNav.map((i: { href: string }) => i.href)).toEqual([
+        '/spaces',
+        '/spaces/transactions',
+        '/spaces/activity',
+      ])
+    })
+
+    it('keeps the Policies entry while the flag is undefined (chain config still loading)', () => {
+      mockUseHasFeature.mockImplementation((feature) => (feature === FEATURES.POLICIES ? undefined : true))
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [mainNav] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(mainNav.map((i: { href: string }) => i.href)).toContain('/spaces/policies')
+    })
+
+    it('keeps the Policies entry when the flag is enabled', () => {
+      mockUseHasFeature.mockReturnValue(true)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [mainNav] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(mainNav.map((i: { href: string }) => i.href)).toContain('/spaces/policies')
+    })
+
+    it('leaves the Security and Activity gates untouched when only POLICIES is off', () => {
+      mockUseHasFeature.mockImplementation((feature) => feature !== FEATURES.POLICIES)
+
+      render(<SpacesSidebarContent spaceInitial="T" selectedSpace={mockSpace} spaces={mockSpaces} />)
+
+      const [mainNav, setupGroup] = mockUseResolvedSidebarNav.mock.calls[0]
+      expect(mainNav.map((i: { href: string }) => i.href)).toContain('/spaces/activity')
+      expect(setupGroup.items.map((i: { href: string }) => i.href)).toContain('/spaces/security')
+    })
+  })
+
   it('is unaffected by geoblocking — nav items remain visible when user is blocked', () => {
     render(
       <GeoblockingContext.Provider value={true}>
@@ -167,7 +341,7 @@ describe('SpacesSidebarContent', () => {
     )
 
     const [mainNav, setupGroup] = mockUseResolvedSidebarNav.mock.calls[0]
-    expect(mainNav).toHaveLength(2)
-    expect(setupGroup.items).toHaveLength(2)
+    expect(mainNav).toHaveLength(4)
+    expect(setupGroup.items).toHaveLength(3)
   })
 })

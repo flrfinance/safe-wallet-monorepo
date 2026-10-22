@@ -2,7 +2,11 @@ import { screen, waitFor, act, getByText, fireEvent } from '@testing-library/rea
 
 import { render } from '../../test-utils'
 import { ContractInterface } from '../../typings/models'
-import SolidityForm, { CONTRACT_METHOD_INDEX_FIELD_NAME, TO_ADDRESS_FIELD_NAME } from './SolidityForm'
+import SolidityForm, {
+  CONTRACT_METHOD_INDEX_FIELD_NAME,
+  NATIVE_VALUE_FORMAT_HINT,
+  TO_ADDRESS_FIELD_NAME,
+} from './SolidityForm'
 
 // Axios is bundled as ESM module which is not directly compatible with Jest
 // https://jestjs.io/docs/ecmascript-modules
@@ -10,6 +14,15 @@ jest.mock('axios', () => ({
   get: jest.fn(),
   post: jest.fn(),
   delete: jest.fn(),
+}))
+
+const KNOWN_ADDRESS = '0x9913B9180C20C6b0F21B6480c84422F6ebc4B808'
+
+jest.mock('../../hooks/useKnownAddresses', () => ({
+  useKnownAddresses: () => ({
+    knownAddresses: [{ address: '0x9913B9180C20C6b0F21B6480c84422F6ebc4B808', name: 'Treasury' }],
+    loadAddressBook: jest.fn(),
+  }),
 }))
 
 const testAddressMethod = {
@@ -43,7 +56,7 @@ describe('<SolidityForm>', () => {
         initialValues={initialValues}
         contract={testContract}
         nativeCurrencySymbol={'ETH'}
-        networkPrefix={'rin:'}
+        networkPrefix={'rin'}
         showHexEncodedData={false}
       >
         <button type="submit">submit</button>
@@ -64,7 +77,7 @@ describe('<SolidityForm>', () => {
         initialValues={initialValues}
         contract={testContract}
         nativeCurrencySymbol={'ETH'}
-        networkPrefix={'rin:'}
+        networkPrefix={'rin'}
         showHexEncodedData={false}
       >
         <button type="submit">submit</button>
@@ -73,9 +86,9 @@ describe('<SolidityForm>', () => {
 
     let input: ReturnType<typeof screen.getByRole>
 
-    // testAddressMethod is selected by default
+    // Address fields are comboboxes too, so the selector needs a scoped query
     await waitFor(() => {
-      input = screen.getByRole('combobox')
+      input = screen.getByRole('combobox', { name: /contract method selector/i })
       expect(input).toHaveValue('testAddressValue')
     })
 
@@ -91,6 +104,49 @@ describe('<SolidityForm>', () => {
     })
   })
 
+  it('Submits an address picked from the To Address dropdown', async () => {
+    const onSubmit = jest.fn()
+
+    render(
+      <SolidityForm
+        id={'test-form'}
+        onSubmit={onSubmit}
+        getAddressFromDomain={jest.fn()}
+        initialValues={initialValues}
+        contract={testContract}
+        nativeCurrencySymbol={'ETH'}
+        networkPrefix={'rin'}
+        showHexEncodedData={false}
+      >
+        <button type="submit">submit</button>
+      </SolidityForm>,
+    )
+
+    const toAddressInput = await screen.findByRole('combobox', { name: /to address/i })
+
+    act(() => {
+      fireEvent.change(toAddressInput, { target: { value: 'Treas' } })
+      fireEvent.keyDown(toAddressInput, { key: 'ArrowDown' })
+      fireEvent.keyDown(toAddressInput, { key: 'Enter' })
+    })
+
+    await waitFor(() => {
+      expect(toAddressInput).toHaveValue(`rin:${KNOWN_ADDRESS}`)
+    })
+
+    // The contract method parameter is required for the form to submit
+    fireEvent.change(screen.getByRole('combobox', { name: /newValue/i }), {
+      target: { value: initialValues[TO_ADDRESS_FIELD_NAME] },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'submit' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled()
+    })
+    // The prefix is display-only: the submitted value stays unprefixed
+    expect(onSubmit.mock.calls[0][0][TO_ADDRESS_FIELD_NAME]).toBe(KNOWN_ADDRESS)
+  })
+
   // see https://github.com/safe-global/safe-react-apps/issues/450
   xit('Avoid collisions between parameters with the same name and different types when changing contract methods', async () => {
     render(
@@ -101,7 +157,7 @@ describe('<SolidityForm>', () => {
         initialValues={initialValues}
         contract={testContract}
         nativeCurrencySymbol={'ETH'}
-        networkPrefix={'rin:'}
+        networkPrefix={'rin'}
         showHexEncodedData={false}
       >
         <button type="submit">submit</button>
@@ -160,6 +216,38 @@ describe('<SolidityForm>', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('contract-field-newValue')).toHaveValue('0x680cde08860141F9D223cE4E620B10Cd6741037E')
+    })
+  })
+
+  describe('Native value field', () => {
+    const renderForm = (nativeCurrencySymbol: string | undefined = 'ETH') =>
+      render(
+        <SolidityForm
+          id={'test-form'}
+          onSubmit={jest.fn()}
+          getAddressFromDomain={jest.fn()}
+          initialValues={initialValues}
+          contract={null}
+          nativeCurrencySymbol={nativeCurrencySymbol}
+          networkPrefix={'rin'}
+          showHexEncodedData={false}
+        >
+          <button type="submit">submit</button>
+        </SolidityForm>,
+      )
+
+    it('labels the field with the native currency unit and states the expected format', async () => {
+      renderForm()
+
+      expect(await screen.findByLabelText(/^Value \(ETH\)/)).toBeInTheDocument()
+      expect(screen.getByText(NATIVE_VALUE_FORMAT_HINT)).toBeInTheDocument()
+    })
+
+    it('falls back to a unit-less label while the chain info is unknown', async () => {
+      renderForm(undefined)
+
+      expect(await screen.findByLabelText(/^Value/)).toBeInTheDocument()
+      expect(screen.queryByLabelText(/undefined/)).not.toBeInTheDocument()
     })
   })
 })

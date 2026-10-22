@@ -3,13 +3,16 @@ import * as main from '../../e2e/pages/main.page'
 import * as createtx from '../../e2e/pages/create_tx.pages'
 import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import * as wallet from '../../support/utils/wallet.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
 
 const currentNonce = 5
 
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
+let signer
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+})
 
 describe('[SMOKE] Create transactions tests', () => {
   before(async () => {
@@ -17,8 +20,7 @@ describe('[SMOKE] Create transactions tests', () => {
   })
 
   beforeEach(() => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_10)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_10)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
   })
@@ -34,6 +36,12 @@ describe('[SMOKE] Create transactions tests', () => {
   })
 
   it('[SMOKE] Verify address input resolves a valid ENS name', () => {
+    cy.fixture('ens_e2etestsafe').then((results) => {
+      cy.intercept('POST', '**', (req) => {
+        const result = results[req.body?.params?.[0]?.to?.toLowerCase()]
+        if (result) req.reply({ body: { jsonrpc: '2.0', id: req.body.id, result } })
+      })
+    })
     createtx.typeRecipientAddress(constants.ENS_TEST_SEPOLIA)
     createtx.verifyENSResolves(staticSafes.SEP_STATIC_SAFE_6)
   })

@@ -9,7 +9,7 @@ import * as useIsSpaceRouteHook from '@/hooks/useIsSpaceRoute'
 import * as useMixpanelUserPropertiesHook from '../useMixpanelUserProperties'
 import * as useChainHook from '@/hooks/useChains'
 import * as useSafeInfoHook from '@/hooks/useSafeInfo'
-import * as useCurrentSpaceIdHook from '@/features/spaces/hooks/useCurrentSpaceId'
+import * as useCurrentSpaceIdHook from '@/features/spaces'
 import { CookieAndTermType, cookiesAndTermsSlice, cookiesAndTermsInitialState } from '@/store/cookiesAndTermsSlice'
 import { DeviceType } from '../types'
 import { MixpanelUserProperty } from '../mixpanel-events'
@@ -28,27 +28,6 @@ jest.mock('mixpanel-browser', () => ({
   },
   track: jest.fn(),
 }))
-
-// Mock MUI hooks
-jest.mock('@mui/material/styles', () => {
-  const original = jest.requireActual('@mui/material/styles')
-  return {
-    ...original,
-    useTheme: jest.fn(() => ({
-      breakpoints: {
-        down: jest.fn((breakpoint) => breakpoint === 'sm' || breakpoint === 'md'),
-      },
-    })),
-  }
-})
-
-jest.mock('@mui/material', () => {
-  const original = jest.requireActual('@mui/material')
-  return {
-    ...original,
-    useMediaQuery: jest.fn(() => false), // Default to desktop (not mobile, not tablet)
-  }
-})
 
 // Mock hooks
 jest.mock('@/hooks/useChains', () => ({
@@ -81,6 +60,13 @@ jest.mock('@/hooks/useSafeInfo', () => ({
 
 jest.mock('@/features/spaces/hooks/useCurrentSpaceId', () => ({
   useCurrentSpaceId: jest.fn(),
+}))
+
+const mockUseSpacePlanState = jest.fn<{ status: string; tier: string; role: string } | null, [string | null]>(
+  () => null,
+)
+jest.mock('@/features/spaces/hooks/useSpacePlanState', () => ({
+  useSpacePlanState: (id: string | null) => mockUseSpacePlanState(id),
 }))
 
 jest.mock('@safe-global/store/gateway/AUTO_GENERATED/auth', () => ({
@@ -204,6 +190,17 @@ describe('useMixpanel', () => {
     expect(mixpanelModule.mixpanelSetBlockchainNetwork).toHaveBeenCalledWith(mockChainName)
   })
 
+  it('should clear the blockchain network when no chain is active', () => {
+    jest.spyOn(useChainHook, 'useChain').mockReturnValue(undefined)
+    jest.spyOn(mixpanelModule, 'mixpanelSetBlockchainNetwork')
+
+    renderHook(() => useMixpanel(), { initialReduxState: getDefaultInitialReduxState() })
+
+    // Space routes have no active Safe; leaving the previous Safe's network registered
+    // would attach it to every workspace event.
+    expect(mixpanelModule.mixpanelSetBlockchainNetwork).toHaveBeenCalledWith('')
+  })
+
   it('should set device type', () => {
     jest.spyOn(mixpanelModule, 'mixpanelSetDeviceType')
 
@@ -291,5 +288,19 @@ describe('useMixpanel', () => {
 
     // Should only be called for wallet properties, not user properties
     expect(mixpanelModule.mixpanelSetUserProperties).toHaveBeenCalledTimes(1)
+  })
+
+  it('stamps the plan state of the Workspace on every event, and clears it outside one', () => {
+    jest.spyOn(mixpanelModule, 'mixpanelSetPlanState')
+    jest.spyOn(useIsSpaceRouteHook, 'useIsSpaceRoute').mockReturnValue(true)
+    mockUseSpacePlanState.mockReturnValue({ status: 'free_access', tier: 'business', role: 'admin' })
+
+    renderHook(() => useMixpanel(), { initialReduxState: getDefaultInitialReduxState() })
+    expect(mockUseSpacePlanState).toHaveBeenCalledWith('42')
+    expect(mixpanelModule.mixpanelSetPlanState).toHaveBeenCalledWith('free_access', 'business', 'admin')
+
+    mockUseSpacePlanState.mockReturnValue(null)
+    renderHook(() => useMixpanel(), { initialReduxState: getDefaultInitialReduxState() })
+    expect(mixpanelModule.mixpanelSetPlanState).toHaveBeenLastCalledWith('', '', '')
   })
 })

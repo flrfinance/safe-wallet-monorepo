@@ -7,11 +7,19 @@ on:
     paths:
       - apps/mobile/**
       - packages/**
+      - yarn.lock
+      - package.json
+      - .yarnrc.yml
+      - .yarn/patches/**
   pull_request:
     paths:
       - apps/mobile/**
       - packages/**
       - .github/workflows/mobile-unit-tests.yml
+      - yarn.lock
+      - package.json
+      - .yarnrc.yml
+      - .yarn/patches/**
 
 jobs:
   test-and-coverage:
@@ -24,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/yarn
         with:
@@ -40,7 +48,7 @@ jobs:
             | tee ./coverage.txt && exit ${PIPESTATUS[0]}
 
       - name: Jest Coverage Comment
-        uses: MishaKav/jest-coverage-comment@v1
+        uses: MishaKav/jest-coverage-comment@1b5d15445c8afba0c13bd00167bd31130b812d0a # v1.0.37
         with:
           coverage-summary-path: ./coverage/coverage-summary.json
           coverage-title: Coverage

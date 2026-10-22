@@ -15,20 +15,19 @@ import MyAccounts from './components/MyAccounts'
 import MyAccountsV2 from './components/MyAccountsV2'
 import AccountItemButton from './components/AccountItem/AccountItemButton'
 import AccountItemLink from './components/AccountItem/AccountItemLink'
-import AccountItemCheckbox from './components/AccountItem/AccountItemCheckbox'
+import AccountItemCheckbox from '@safe-global/views/features/myAccounts/components/AccountItem/AccountItemCheckbox'
 import AccountItemIcon from './components/AccountItem/AccountItemIcon'
 import AccountItemInfo from './components/AccountItem/AccountItemInfo'
 import AccountItemChainBadge from './components/AccountItem/AccountItemChainBadge'
 import AccountItemBalance from './components/AccountItem/AccountItemBalance'
 import AccountItemPinButton from './components/AccountItem/AccountItemPinButton'
 import AccountItemContextMenu from './components/AccountItem/AccountItemContextMenu'
-import AccountItemGroup from './components/AccountItem/AccountItemGroup'
+import AccountItemGroup from '@safe-global/views/features/myAccounts/components/AccountItem/AccountItemGroup'
 import AccountItemStatusChip from './components/AccountItem/AccountItemStatusChip'
 import AccountItemQueueActions from './components/AccountItem/AccountItemQueueActions'
-import AccountItemContent from './components/AccountItem/AccountItemContent'
+import AccountItemContent from '@safe-global/views/features/myAccounts/components/AccountItem/AccountItemContent'
 import SafesList from './components/SafesList'
 import AccountsNavigation from './components/AccountsNavigation'
-import SafeSelectionModal from './components/SafeSelectionModal'
 import NonPinnedWarning from './components/NonPinnedWarning'
 import AccountsWidget from './components/AccountsWidget/AccountsWidget'
 
@@ -57,7 +56,6 @@ const feature: MyAccountsContract = {
   AccountsWidget,
 
   // Address safety components
-  SafeSelectionModal,
   NonPinnedWarning,
 }
 

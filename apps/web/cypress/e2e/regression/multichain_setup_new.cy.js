@@ -11,12 +11,14 @@ import * as create_wallet from '../pages/create_wallet.pages.js'
 import * as owner from '../pages/owners.pages.js'
 
 import { suspendOutreachModal } from '../pages/modals.page.js'
-import { isThisYear } from 'date-fns'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
 
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
+let signer
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+})
 
 const sidebarNavItem = '[data-testid="sidebar-list-item"]'
 
@@ -26,11 +28,12 @@ describe('Multichain setup tests', { defaultCommandTimeout: 60000 }, () => {
   })
 
   beforeEach(() => {
-    cy.visit(constants.BALANCE_URL + staticSafes.MATIC_STATIC_SAFE_28)
-    cy.wait(2000)
-    main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addedSafes, ls.addedSafes.set5)
-    main.addToLocalStorage(constants.localStorageKeys.SAFE_v2__addressBook, ls.addressBookData.multichain)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.MATIC_STATIC_SAFE_28, {
+      extraStorage: {
+        [constants.localStorageKeys.SAFE_v2__addedSafes]: ls.addedSafes.set5,
+        [constants.localStorageKeys.SAFE_v2__addressBook]: ls.addressBookData.multichain,
+      },
+    })
   })
 
   // Renamed from: 'Verify that batch tx with safe activation is not allowed for the CF safes'
@@ -52,7 +55,7 @@ describe('Multichain setup tests', { defaultCommandTimeout: 60000 }, () => {
     cy.contains(sidebarNavItem, 'Apps').should('be.disabled')
   })
 
-  isThisYear('Verify notification if the owner set up was changed in original safe', () => {
+  it('Verify notification if the owner set up was changed in original safe', () => {
     const safeAddress = staticSafes.MATIC_STATIC_SAFE_28.split(':')[1]
     // Mock /v2/safes to return deviating owners across chains — triggers InconsistentSignerSetupWarning
     cy.intercept('GET', '**/v2/safes**', [
@@ -60,7 +63,7 @@ describe('Multichain setup tests', { defaultCommandTimeout: 60000 }, () => {
         address: { value: safeAddress },
         chainId: '137',
         threshold: 1,
-        owners: [{ value: constants.DEFAULT_OWNER_ADDRESS }],
+        owners: [{ value: constants.defaultOwnerAddress() }],
         fiatTotal: '0',
         queued: 0,
       },
@@ -77,6 +80,7 @@ describe('Multichain setup tests', { defaultCommandTimeout: 60000 }, () => {
     cy.visit(constants.homeUrl + staticSafes.MATIC_STATIC_SAFE_28)
     dashboard.expandActionRequiredPanel()
     dashboard.checkInconsistentSignersMsgDisplayed()
+    dashboard.verifySafeInUrl(staticSafes.MATIC_STATIC_SAFE_28)
     dashboard.clickActionInPanel(dashboard.reviewSignersTestId)
     cy.url().should('include', '/settings/setup').and('include', staticSafes.MATIC_STATIC_SAFE_28)
   })

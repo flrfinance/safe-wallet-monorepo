@@ -5,66 +5,79 @@ import * as createwallet from '../pages/create_wallet.pages'
 import * as createTx from '../pages/create_tx.pages.js'
 import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import * as wallet from '../../support/utils/wallet.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
+let signer
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+})
 
 describe('Remove Owners tests', () => {
   before(async () => {
     staticSafes = await getSafes(CATEGORIES.static)
   })
 
-  beforeEach(() => {
-    cy.intercept('GET', constants.transactionHistoryEndpoint).as('History')
-    cy.visit(constants.setupUrl + staticSafes.SEP_STATIC_SAFE_13)
-    cy.wait('@History', { timeout: 20000 })
-    cy.contains(owner.safeAccountNonceStr, { timeout: 10000 })
+  describe('Disconnected', () => {
+    beforeEach(() => {
+      cy.intercept('GET', constants.transactionHistoryEndpoint).as('History')
+      cy.visit(constants.setupUrl + staticSafes.SEP_STATIC_SAFE_13)
+      cy.wait('@History', { timeout: 20000 })
+      cy.contains(owner.safeAccountNonceStr, { timeout: 10000 })
+    })
+
+    it('Verify that "Remove" icon is visible', () => {
+      owner.verifyRemoveBtnIsEnabled().should('have.length', 2)
+    })
+
+    it('Verify remove owner button is disabled for disconnected user', () => {
+      owner.verifyRemoveBtnIsDisabled()
+    })
   })
 
-  it('Verify that "Remove" icon is visible', () => {
-    owner.verifyRemoveBtnIsEnabled().should('have.length', 2)
+  describe('Connected', () => {
+    beforeEach(() => {
+      cy.intercept('GET', constants.transactionHistoryEndpoint).as('History')
+      wallet.connectSignerViaStorage(signer, constants.setupUrl + staticSafes.SEP_STATIC_SAFE_13)
+      cy.wait('@History', { timeout: 20000 })
+      cy.contains(owner.safeAccountNonceStr, { timeout: 10000 })
+    })
+
+    it('Verify owner removal form can be opened', () => {
+      owner.openRemoveOwnerWindow(1)
+    })
+
+    it('Verify that threshold input displays the upper limit as the current safe number of owners minus one', () => {
+      owner.openRemoveOwnerWindow(1)
+      owner.verifyThresholdLimit(1, 1)
+      owner.getThresholdOptions().should('have.length', 1)
+    })
+
+    // Added to prod
+    it('Verify owner deletion transaction has been created', () => {
+      createTx.cleanTransactionQueue(staticSafes.SEP_STATIC_SAFE_13, signer)
+      wallet.connectSignerViaStorage(signer, constants.setupUrl + staticSafes.SEP_STATIC_SAFE_13)
+      owner.waitForConnectionStatus()
+      owner.openRemoveOwnerWindow(1)
+      createwallet.clickOnNextBtn()
+      //This method creates the @removedAddress alias
+      owner.getAddressToBeRemoved()
+      owner.verifyOwnerDeletionWindowDisplayed()
+      createTx.changeNonce(10)
+      createTx.clickOnContinueSignTransactionBtn()
+      createTx.clickOnSignTransactionBtn()
+      createTx.clickViewTransaction()
+      createTx.clickOnTransactionItemByName('removeOwner')
+      createTx.verifyTxDestinationAddress('@removedAddress')
+    })
   })
 
-  it('Verify remove button does not exist for Non-Owner when there is only 1 owner in the safe', () => {
-    cy.intercept('GET', constants.transactionHistoryEndpoint).as('History')
-    cy.visit(constants.setupUrl + staticSafes.SEP_STATIC_SAFE_3)
-    cy.wait('@History', { timeout: 20000 })
-    main.verifyElementsCount(owner.removeOwnerBtn, 0)
-  })
-
-  it('Verify remove owner button is disabled for disconnected user', () => {
-    owner.verifyRemoveBtnIsDisabled()
-  })
-
-  it('Verify owner removal form can be opened', () => {
-    wallet.connectSigner(signer)
-    owner.openRemoveOwnerWindow(1)
-  })
-
-  it('Verify that threshold input displays the upper limit as the current safe number of owners minus one', () => {
-    wallet.connectSigner(signer)
-    owner.openRemoveOwnerWindow(1)
-    owner.verifyThresholdLimit(1, 1)
-    owner.getThresholdOptions().should('have.length', 1)
-  })
-
-  // Added to prod
-  it('Verify owner deletion transaction has been created', () => {
-    wallet.connectSigner(signer)
-    owner.waitForConnectionStatus()
-    owner.openRemoveOwnerWindow(1)
-    cy.wait(3000)
-    createwallet.clickOnNextBtn()
-    //This method creates the @removedAddress alias
-    owner.getAddressToBeRemoved()
-    owner.verifyOwnerDeletionWindowDisplayed()
-    createTx.changeNonce(10)
-    createTx.clickOnContinueSignTransactionBtn()
-    createTx.clickOnSignTransactionBtn()
-    createTx.waitForProposeRequest()
-    createTx.clickViewTransaction()
-    createTx.clickOnTransactionItemByName('removeOwner')
-    createTx.verifyTxDestinationAddress('@removedAddress')
+  describe('Single-owner safe', () => {
+    it('Verify remove button does not exist for Non-Owner when there is only 1 owner in the safe', () => {
+      cy.intercept('GET', constants.transactionHistoryEndpoint).as('History')
+      cy.visit(constants.setupUrl + staticSafes.SEP_STATIC_SAFE_3)
+      cy.wait('@History', { timeout: 20000 })
+      main.verifyElementsCount(owner.removeOwnerBtn, 0)
+    })
   })
 })

@@ -7,10 +7,12 @@ import * as swaps_data from '../../fixtures/swaps_data.json'
 import * as assets from './assets.pages.js'
 import * as addressbook from './address_book.page.js'
 import * as dashboard from './dashboard.pages.js'
+import { fixtureGetters } from '../../support/fixture.js'
 
 export const inputCurrencyInput = '[id="input-currency-input"]'
 export const outputCurrencyInput = '[id="output-currency-input"]'
 const tokenList = '[id="tokens-list"]'
+const currencySelectBtn = '.open-currency-select-button'
 export const swapBtn = '[id="swap-button"]'
 const exceedFeesChkbox = 'input[id="fees-exceed-checkbox"]'
 const settingsBtn = 'button[id="open-settings-dialog-button"]'
@@ -18,8 +20,8 @@ const settingsBtnTwap = 'button[id^="menu-button--menu"]'
 export const assetsSwapBtn = '[data-testid="swap-btn"]'
 export const dashboardSwapBtn = '[data-testid="overview-swap-btn"]'
 export const customRecipient = 'div[id="recipient"]'
-const recipientToggle = 'button[id="toggle-recipient-mode-button"]'
-const twapsAddressToggle = 'button[class*="Toggle__Wrapper"]'
+const recipientToggle = 'span[id="toggle-recipient-mode-button"]'
+const twapsCustomRecipientStr = 'Custom Recipient'
 const explorerBtn = '[data-testid="explorer-btn"]'
 const limitPriceFld = '[data-testid="limit-price"]'
 const expiryFld = '[data-testid="expiry"]'
@@ -107,9 +109,7 @@ export const orderTypes = {
   limit: 'Limit',
 }
 
-export const limitOrderSafe = 'sep:0x8f4A19C85b39032A37f7a6dCc65234f966F72551'
-
-export const swapTxs = {
+export const swapTxs = fixtureGetters('swaps', {
   sell1Action:
     '&id=multisig_0x03042B890b99552b60A073F808100517fb148F60_0xd033466000a40227fba7a7deb1a668371c213fec90bac9f2583096be2e0fd959',
   buy2actions:
@@ -134,7 +134,7 @@ export const swapTxs = {
     '&id=multisig_0xF184a243925Bf7fb1D64487339FF4F177Fb75644_0x06d7e5920bb59a38cf46436b146c33e7307d690875f7d64bca32a0b0c3394deb',
   swapQueue:
     '&id=multisig_0xD8b85a669413b25a8BE7D7698f88b7bFA20889d2_0xc2a59a93e1cbaeab5fde7a5d4cc63938e1b1e4597c7e203146a6e6e07b43a92f',
-}
+})
 
 export const tokenBlockLabels = {
   sell: 'Sell',
@@ -196,8 +196,21 @@ export function setLimitExpiry(value) {
   cy.get(limitOrderExpiryItem(value)).dblclick()
 }
 
+// On slow runners the widget rewrites "0x" mid-typing and drops a keystroke, so the address is set at once.
 export function enterRecipient(address) {
-  cy.get(customRecipient).find('input').clear().type(address)
+  cy.get(customRecipient)
+    .find('input')
+    .clear()
+    .then(([input]) => {
+      const frameWindow = input.ownerDocument.defaultView
+      Object.getOwnPropertyDescriptor(frameWindow.HTMLInputElement.prototype, 'value').set.call(input, address)
+      input.dispatchEvent(new frameWindow.Event('input', { bubbles: true }))
+    })
+    .should('have.value', address)
+}
+
+export function verifyBlockedAddressFormShown() {
+  cy.contains(blockedAddressStr).should('be.visible')
 }
 
 export function setSlippage(value) {
@@ -238,18 +251,34 @@ export function clickOnReviewOrderBtn() {
   cy.get(reviewTwapBtn).should('be.enabled').click()
 }
 
-export function placeTwapOrder() {
+export function placeTwapOrder(attempt = 0) {
+  const maxAttempts = 5
   cy.wait(3000)
+
+  // The quote auto-refreshes (~every 30s) and re-disables "Place TWAP order" behind a
+  // "Price Updated" -> "Accept" prompt. Accept the refreshed quote, then place the order;
+  // if the quote refreshes again before we click, retry.
   cy.get('button')
     .contains(acceptStrBtn)
     .should(() => {})
-    .then(($button) => {
-      if (!$button.length) {
-        return
+    .then(($accept) => {
+      if ($accept.length) {
+        cy.wrap($accept).click()
       }
-      cy.wrap($button).click()
     })
-  cy.get('button').contains(placeTwapOrderStrBtn).should('be.enabled').click()
+
+  cy.get('button')
+    .contains(placeTwapOrderStrBtn)
+    .then(($button) => {
+      if ($button.is(':disabled')) {
+        if (attempt >= maxAttempts) {
+          throw new Error('"Place TWAP order" stayed disabled after accepting refreshed quotes')
+        }
+        placeTwapOrder(attempt + 1)
+      } else {
+        cy.wrap($button).click()
+      }
+    })
 }
 
 export function confirmPriceImpact() {
@@ -260,6 +289,16 @@ export function confirmPriceImpact() {
     .then(($checkbox) => {
       if ($checkbox.length) {
         cy.wrap($checkbox).click()
+      }
+    })
+
+  // High price-impact orders now require typing "confirm" before the order can proceed.
+  cy.get(confirmPriceImpactInput)
+    .should(() => {})
+    .then(($input) => {
+      if ($input.length) {
+        cy.wrap($input).clear().type('confirm')
+        cy.get(confirmPriceImpactBtn).should('be.enabled').click()
       }
     })
 }
@@ -279,6 +318,26 @@ export const currencyDirectionOptions = {
 
 export function acceptLegalDisclaimer() {
   cy.get('button').contains('Continue').click()
+}
+
+const WIDGET_WALLET_TIMEOUT_MS = 15000
+
+const isWidgetWalletConnected = (iframeSelector) => () => {
+  const $body = Cypress.$(Cypress.$(iframeSelector)[0]?.contentDocument?.body)
+  return $body.find(inputCurrencyInput).length > 0 && !$body.find('button:contains("Connect Wallet")').length
+}
+
+// The widget can miss the host wallet handshake and stay on "Connect Wallet" — reload to redo it.
+export function ensureWidgetWalletConnected(iframeSelector, attempt = 0) {
+  main.pollUntil(isWidgetWalletConnected(iframeSelector), WIDGET_WALLET_TIMEOUT_MS).then((connected) => {
+    if (connected) return
+    if (attempt >= 2) {
+      throw new Error('CoW widget did not receive the connected wallet after reloading')
+    }
+    cy.reload()
+    cy.get('button').contains('Continue').click()
+    ensureWidgetWalletConnected(iframeSelector, attempt + 1)
+  })
 }
 
 export function checkTokenBalance(safe, tokenSymbol) {
@@ -307,29 +366,31 @@ export function verifySelectedInputCurrancy(option) {
   })
 }
 
-function selectCurrency(inputSelector, option) {
-  cy.get(inputSelector).within(() => {
-    cy.get('button')
-      .eq(0)
-      .invoke('text')
-      .then(($value) => {
-        cy.log('*** Currency value ' + $value)
-        if (!$value.includes(option)) {
-          cy.log('*** Currency value is different from specified')
-          cy.get('button').eq(0).trigger('mouseover').trigger('click')
-          cy.wrap(true).as('isAction')
-        } else {
-          cy.wrap(false).as('isAction')
-        }
-      })
-  })
+const TOKEN_LIST_OPEN_MS = 10000
+const TOKEN_LIST_OPEN_ATTEMPTS = 3
 
-  cy.get('@isAction').then((isAction) => {
-    if (isAction) {
-      cy.log('*** Clicking on token option')
+function openTokenList(inputSelector, attemptsLeft = TOKEN_LIST_OPEN_ATTEMPTS) {
+  cy.get(inputSelector).find(currencySelectBtn).trigger('mouseover').trigger('click')
+  cy.root().then(($root) =>
+    main
+      .pollUntil(() => $root.find(tokenList).length > 0, TOKEN_LIST_OPEN_MS)
+      .then((isOpen) => {
+        if (isOpen) return
+        expect(attemptsLeft, 'attempts left to open the token list').to.be.greaterThan(1)
+        openTokenList(inputSelector, attemptsLeft - 1)
+      }),
+  )
+}
+
+function selectCurrency(inputSelector, option) {
+  cy.get(inputSelector)
+    .find(currencySelectBtn)
+    .invoke('text')
+    .then((currentCurrency) => {
+      if (currentCurrency.includes(option)) return
+      openTokenList(inputSelector)
       cy.get(tokenList).find('span').contains(option).click()
-    }
-  })
+    })
 }
 
 export function selectInputCurrency(option) {
@@ -365,17 +426,36 @@ export function setOutputValue(value) {
   })
 }
 
+export function setNumberOfParts(parts) {
+  cy.get('span')
+    .contains(numberOfPartsStr)
+    .next()
+    .find('input')
+    .should('be.visible')
+    .clear()
+    .invoke('val', '')
+    .trigger('input')
+    .then(($input) => {
+      if ($input.val() !== '') {
+        cy.wrap($input).clear().invoke('val', '').trigger('input')
+      }
+    })
+    .should('have.value', '')
+    .type(parts, { force: true })
+    .should('have.value', String(parts))
+}
+
 export function outputInputIsNotEmpty() {
   cy.get(outputCurrencyInput).find('input').invoke('val').should('not.be.empty')
 }
 
-export function enableCustomRecipient(option) {
-  if (!option) cy.get(recipientToggle).click()
+export function enableTwapCustomRecipient(option) {
+  cy.contains(twapsCustomRecipientStr).should('be.visible')
+  if (!option) cy.contains(twapsCustomRecipientStr).click()
 }
 
-export function enableTwapCustomRecipient(option) {
-  main.verifyMinimumElementsCount(twapsAddressToggle, 1)
-  if (!option) cy.get(twapsAddressToggle).eq(0).click()
+export function enableCustomRecipient(option) {
+  if (!option) cy.get(recipientToggle).click()
 }
 
 export function disableCustomRecipient(option) {

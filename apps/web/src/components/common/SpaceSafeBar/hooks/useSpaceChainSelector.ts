@@ -4,6 +4,7 @@ import { isMultiChainSafeItem } from '@/hooks/safes'
 import useSafeInfo from '@/hooks/useSafeInfo'
 import useChainId from '@/hooks/useChainId'
 import useChains from '@/hooks/useChains'
+import { useSafeAddressFromUrl } from '@/hooks/useSafeAddressFromUrl'
 import { AppRoutes } from '@/config/routes'
 import { trackEvent } from '@/services/analytics'
 import { SPACE_EVENTS } from '@/services/analytics/events/spaces'
@@ -12,10 +13,13 @@ import { useCurrentSpaceId } from '@/features/spaces'
 import { sameAddress } from '@safe-global/utils/utils/addresses'
 import type { ChainInfo } from '@/features/spaces/types'
 import { useSafeBarSafes } from './useSafeBarSafes'
+import { withSpaceId } from '@/hooks/useUrlSpaceId'
 
 export function useSpaceChainSelector() {
   const { chainSelectorSafes: allSafes } = useSafeBarSafes()
-  const { safeAddress } = useSafeInfo()
+  const { safeAddress: reduxSafeAddress } = useSafeInfo()
+  const urlSafeAddress = useSafeAddressFromUrl()
+  const safeAddress = urlSafeAddress || reduxSafeAddress
   const selectedChainId = useChainId()
   const { configs: chainConfigs } = useChains()
   const router = useRouter()
@@ -54,7 +58,10 @@ export function useSpaceChainSelector() {
           [MixpanelEventParams.CHAIN_ID]: chainId,
         },
       )
-      router.push({ pathname: AppRoutes.home, query: { safe: `${chain.shortName}:${safeAddress}` } })
+      router.push({
+        pathname: AppRoutes.home,
+        query: withSpaceId({ safe: `${chain.shortName}:${safeAddress}` }, spaceId),
+      })
     },
     [chainConfigs, router, safeAddress, spaceId],
   )

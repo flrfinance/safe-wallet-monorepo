@@ -1,16 +1,16 @@
-import { Box } from '@mui/material'
-import { Typography, Link, SvgIcon } from '@mui/material'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { Link } from '@safe-global/views/components/ui/link'
 import { useEffect, useState } from 'react'
 import type { ReactElement } from 'react'
 
 import ErrorMessage from '@/components/tx/ErrorMessage'
 import useSafeMessages from '@/hooks/messages/useSafeMessages'
-import LinkIcon from '@/public/images/common/link.svg'
+import LinkIcon from '@safe-global/views/assets/images/common/link.svg'
 import NoMessagesIcon from '@/public/images/messages/no-messages.svg'
 import InfiniteScroll from '@/components/common/InfiniteScroll'
-import PagePlaceholder from '@/components/common/PagePlaceholder'
+import PagePlaceholder from '@safe-global/views/components/common/PagePlaceholder'
 import MsgList from '@/components/safe-messages/MsgList'
-import SkeletonTxList from '@/components/common/PaginatedTxns/SkeletonTxList'
+import SkeletonTxList from '@safe-global/views/components/common/PaginatedTxns/SkeletonTxList'
 import useSafeInfo from '@/hooks/useSafeInfo'
 import { HelpCenterArticle } from '@safe-global/utils/config/constants'
 
@@ -19,29 +19,14 @@ const NoMessages = (): ReactElement => {
     <PagePlaceholder
       img={<NoMessagesIcon />}
       text={
-        <Typography
-          variant="body1"
-          sx={{
-            color: 'primary.light',
-            m: 2,
-            maxWidth: '600px',
-          }}
-        >
+        <Typography variant="paragraph" className="m-4 max-w-[600px] text-[var(--color-primary-light)]">
           Some applications allow you to interact with them via off-chain contract signatures (&ldquo;messages&ldquo;)
-          that you can generate with your Safe Account.
+          that you can generate with your Safe account.
         </Typography>
       }
     >
-      <Link
-        rel="noopener noreferrer"
-        target="_blank"
-        href={HelpCenterArticle.SIGNED_MESSAGES}
-        sx={{
-          fontWeight: 700,
-        }}
-      >
-        Learn more about off-chain messages{' '}
-        <SvgIcon component={LinkIcon} inheritViewBox fontSize="small" sx={{ verticalAlign: 'middle', ml: 0.5 }} />
+      <Link rel="noopener noreferrer" target="_blank" href={HelpCenterArticle.SIGNED_MESSAGES} className="font-bold">
+        Learn more about off-chain messages <LinkIcon className="ml-1 inline size-5 align-middle" />
       </Link>
     </PagePlaceholder>
   )
@@ -63,14 +48,9 @@ const MsgPage = ({
       {error && <ErrorMessage>Error loading messages</ErrorMessage>}
       {loading && <SkeletonTxList />}
       {page?.next && onNextPage && (
-        <Box
-          sx={{
-            my: 4,
-            textAlign: 'center',
-          }}
-        >
+        <div className="my-8 text-center">
           <InfiniteScroll onLoadMore={() => onNextPage(page.next!)} />
-        </Box>
+        </div>
       )}
     </>
   )
@@ -85,22 +65,17 @@ const PaginatedMsgs = (): ReactElement => {
     setPages((prev) => prev.concat(pageUrl))
   }
 
-  // Reset the pages when the Safe Account changes
+  // Reset the pages when the Safe account changes
   useEffect(() => {
     setPages([''])
   }, [safe.chainId, safeAddress])
 
   return (
-    <Box
-      sx={{
-        mb: 4,
-        position: 'relative',
-      }}
-    >
+    <div className="relative mb-8">
       {pages.map((pageUrl, index) => (
         <MsgPage key={pageUrl} pageUrl={pageUrl} onNextPage={index === pages.length - 1 ? onNextPage : undefined} />
       ))}
-    </Box>
+    </div>
   )
 }
 

@@ -1,8 +1,7 @@
 import type { Transaction } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
 import React from 'react'
-import { Box } from '@mui/system'
 import css from './styles.module.css'
-import { InfoDetails } from '@/components/transactions/InfoDetails'
+import { InfoDetails } from '@safe-global/views/components/transactions/InfoDetails'
 import EthHashInfo from '@/components/common/EthHashInfo'
 import { generateDataRowValue, TxDataRow } from '@/components/transactions/TxDetails/Summary/TxDataRow'
 import { dateString } from '@safe-global/utils/utils/formatters'
@@ -22,7 +21,7 @@ const SafeCreationTx = ({ txSummary }: SafeCreationTxProps) => {
 
   return (
     <>
-      <Box className={css.txCreation}>
+      <div className={css.txCreation}>
         <InfoDetails title="Creator:">
           <NamedAddressInfo
             address={creator.value}
@@ -52,11 +51,11 @@ const SafeCreationTx = ({ txSummary }: SafeCreationTxProps) => {
             NOT_AVAILABLE
           )}
         </InfoDetails>
-      </Box>
-      <Box className={css.txSummary}>
+      </div>
+      <div className={css.txSummary}>
         <TxDataRow title="Transaction hash:">{generateDataRowValue(transactionHash, 'hash', true)}</TxDataRow>
         <TxDataRow title="Created:">{timestamp ? dateString(timestamp) : null}</TxDataRow>
-      </Box>
+      </div>
     </>
   )
 }

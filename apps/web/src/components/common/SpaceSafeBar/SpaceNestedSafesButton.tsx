@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { GitMerge } from 'lucide-react'
 
-import { NestedSafesPopover } from '@/components/sidebar/NestedSafesPopover'
+import { NestedSafesPopover } from '@/components/nested-safes/NestedSafesPopover'
 import { useOwnersGetSafesByOwnerV1Query } from '@safe-global/store/gateway/AUTO_GENERATED/owners'
 import { useHasFeature } from '@/hooks/useChains'
 import useSafeInfo from '@/hooks/useSafeInfo'
@@ -11,13 +11,16 @@ import { FEATURES } from '@safe-global/utils/utils/chains'
 import Track from '@/components/common/Track'
 import { NESTED_SAFE_EVENTS, NESTED_SAFE_LABELS } from '@/services/analytics/events/nested-safes'
 import { MixpanelEventParams } from '@/services/analytics/mixpanel-events'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@safe-global/views/components/ui/tooltip'
+import { useIsSafeBarControlDisabled } from '@/hooks/useIsSafeBarControlDisabled'
+import { cn } from '@safe-global/views/utils/cn'
 
 function SpaceNestedSafesButton(): ReactElement | null {
   const { safe } = useSafeInfo()
   const { chainId } = safe
   const safeAddress = safe.address.value
   const isEnabled = useHasFeature(FEATURES.NESTED_SAFES)
+  const isDisabled = useIsSafeBarControlDisabled()
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null)
 
   const { currentData: ownedSafes } = useOwnersGetSafesByOwnerV1Query(
@@ -45,13 +48,20 @@ function SpaceNestedSafesButton(): ReactElement | null {
 
   return (
     <>
-      <div className="flex self-stretch items-stretch sm:order-1 rounded-lg bg-card shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+      {/* min-h-10 matches the safe selector's own `h-10`: `self-stretch` only sizes this to the
+          selector while they share a flex line, so without a floor the chip collapses to its
+          icon height on the narrow layouts where the selector wraps onto its own row. */}
+      <div className="flex self-stretch items-stretch min-h-10 order-1 rounded-lg bg-muted">
         <Tooltip>
           <TooltipTrigger
             render={
               <button
-                onClick={onClick}
-                className="relative flex items-center border-0 rounded-lg bg-transparent px-2 m-1 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={isDisabled ? undefined : onClick}
+                disabled={isDisabled}
+                className={cn(
+                  'relative flex items-center border-0 rounded-lg bg-transparent px-3 transition-colors',
+                  isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-muted-foreground/10',
+                )}
                 aria-label="Nested Safes"
                 data-testid="nested-safes-button"
               />
@@ -72,7 +82,7 @@ function SpaceNestedSafesButton(): ReactElement | null {
               </div>
             </Track>
           </TooltipTrigger>
-          <TooltipContent>Nested Safes</TooltipContent>
+          <TooltipContent>{isDisabled ? 'Nested Safes are not allowed in this screen' : 'Nested Safes'}</TooltipContent>
         </Tooltip>
       </div>
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
-import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Card } from '@safe-global/views/components/ui/card'
+import { Dialog, DialogContent } from '@safe-global/views/components/ui/dialog'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { closeGlobalSearch, selectGlobalSearchOpen } from '@/features/global-search/store'
 import GlobalSearch from './GlobalSearch'
@@ -36,8 +36,8 @@ const GlobalSearchModal = () => {
 
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <DialogContent showCloseButton={false} className="max-h-[480px] p-0">
-        <Card className="flex flex-col max-h-[480px] py-4 gap-2 shadow-none border-0" onKeyDown={onKeyDown}>
+      <DialogContent showCloseButton={false} padding="none" className="max-h-[480px]">
+        <Card size="sm" className="max-h-[480px]" onKeyDown={onKeyDown}>
           <div className="px-4 shrink-0">
             <GlobalSearch value={query} onChange={setQuery} />
           </div>

@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react'
-import { useMediaQuery, useTheme } from '@mui/material'
+import { useIsBelowSm } from '@/hooks/useMediaQuery'
 import { shortenAddress } from '@safe-global/utils/utils/formatters'
 import { useRouter } from 'next/router'
-import Disclaimer from '@/components/common/Disclaimer'
+import Disclaimer from '@safe-global/views/components/common/Disclaimer'
 import { AppRoutes } from '@/config/routes'
 
 const BlockedAddress = ({
@@ -14,8 +14,7 @@ const BlockedAddress = ({
   featureTitle: string
   onClose?: () => void
 }): ReactElement => {
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const isMobile = useIsBelowSm()
   const displayAddress = address && isMobile ? shortenAddress(address) : address
   const router = useRouter()
 

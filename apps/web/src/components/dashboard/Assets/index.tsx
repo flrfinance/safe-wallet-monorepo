@@ -1,19 +1,20 @@
 import { useMemo } from 'react'
-import { Box, Skeleton, Typography, Paper, Stack, Divider } from '@mui/material'
+import { Skeleton } from '@safe-global/views/components/ui/skeleton'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { Separator } from '@safe-global/views/components/ui/separator'
 import useBalances from '@/hooks/useBalances'
 import TokenAmount from '@/components/common/TokenAmount'
 import { SwapFeature, useIsSwapFeatureEnabled } from '@/features/swap'
 import { useLoadFeature } from '@/features/__core__'
 import { AppRoutes } from '@/config/routes'
-import { WidgetCard } from '../styled'
+import { WidgetCard } from '@safe-global/views/components/dashboard/styled'
 import css from './styles.module.css'
-import { useRouter } from 'next/router'
 import { SWAP_LABELS } from '@/services/analytics/events/swaps'
 import { useVisibleAssets } from '@/components/balances/AssetsTable/useHideAssets'
 import SendButton from '@/components/balances/AssetsTable/SendButton'
 import { FiatBalance } from '@/components/balances/AssetsTable/FiatBalance'
 import { type Balances } from '@safe-global/store/gateway/AUTO_GENERATED/balances'
-import { FiatChange } from '@/components/balances/AssetsTable/FiatChange'
+import { FiatChange } from '@safe-global/views/components/balances/AssetsTable/FiatChange'
 import { isEligibleEarnToken, useIsEarnPromoEnabled, EarnButton } from '@/features/earn'
 import { EARN_LABELS } from '@/services/analytics/events/earn'
 import { useIsStakingBannerEnabled as useIsStakingPromoEnabled } from '@/features/stake'
@@ -23,26 +24,25 @@ import { TokenType } from '@safe-global/store/gateway/types'
 import { StakeFeature } from '@/features/stake'
 import { STAKE_LABELS } from '@/services/analytics/events/stake'
 import NoAssetsIcon from '@/public/images/common/no-assets.svg'
+import { useSafeLinkQuery } from '@/hooks/useSafeLinkQuery'
 
 const MAX_ASSETS = 4
 
 const NoAssets = () => (
-  <Paper elevation={0} sx={{ p: 5, textAlign: 'center' }}>
-    <Box display="flex" justifyContent="center">
+  <div className="rounded-xl bg-[var(--color-background-paper)] p-10 text-center">
+    <div className="flex justify-center">
       <NoAssetsIcon />
-    </Box>
+    </div>
 
-    <Typography mb={0.5} mt={3}>
-      No assets yet
-    </Typography>
+    <Typography className="mb-1 mt-6">No assets yet</Typography>
 
-    <Typography color="primary.light">Deposit from another wallet to get started.</Typography>
-  </Paper>
+    <Typography className="text-[var(--color-primary-light)]">Deposit from another wallet to get started.</Typography>
+  </div>
 )
 
 const AssetsSkeleton = () => (
   <WidgetCard title="Top assets" testId="assets-widget">
-    <Skeleton height={66} variant="rounded" />
+    <Skeleton className="h-[66px] w-full rounded-lg" />
   </WidgetCard>
 )
 
@@ -77,24 +77,24 @@ const AssetRow = ({
   const assetButtonsOffset = VALUE_CONTAINER_GAP + getAssetButtonsWidth(assetButtonCount)
 
   return (
-    <Box className={css.container} key={item.tokenInfo.address}>
-      <Stack direction="row" gap={1.5} alignItems="center">
+    <div className={css.container} key={item.tokenInfo.address}>
+      <div className="flex flex-row items-center gap-3">
         <TokenIcon tokenSymbol={item.tokenInfo.symbol} logoUri={item.tokenInfo.logoUri || undefined} size={32} />
-        <Box>
-          <Typography fontWeight="600">{item.tokenInfo.name}</Typography>
-          <Typography variant="body2" className={css.tokenAmount}>
+        <div>
+          <Typography variant="paragraph-bold">{item.tokenInfo.name}</Typography>
+          <Typography variant="paragraph-small" className={css.tokenAmount}>
             <TokenAmount value={item.balance} decimals={item.tokenInfo.decimals} tokenSymbol={item.tokenInfo.symbol} />
           </Typography>
-        </Box>
-      </Stack>
+        </div>
+      </div>
 
-      <Box className={css.valueContainer} style={{ ['--asset-buttons-offset' as string]: `${assetButtonsOffset}px` }}>
-        <Box className={css.valueContent}>
+      <div className={css.valueContainer} style={{ ['--asset-buttons-offset' as string]: `${assetButtonsOffset}px` }}>
+        <div className={css.valueContent}>
           <FiatBalance balanceItem={item} />
           <FiatChange balanceItem={item} inline />
-        </Box>
+        </div>
 
-        <Box className={css.assetButtons}>
+        <div className={css.assetButtons}>
           <SendButton tokenInfo={item.tokenInfo} onlyIcon />
 
           {showSwap && (
@@ -108,9 +108,9 @@ const AssetRow = ({
           {showStake && item.tokenInfo.type === TokenType.NATIVE_TOKEN && (
             <stake.StakeButton tokenInfo={item.tokenInfo} trackingLabel={STAKE_LABELS.asset} onlyIcon />
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -121,10 +121,10 @@ const AssetList = ({ items }: { items: Balances['items'] }) => {
   const chainId = useChainId()
 
   return (
-    <Box display="flex" flexDirection="column">
+    <div className="flex flex-col">
       {items.map((item, index) => (
-        <Box key={item.tokenInfo.address}>
-          {index > 0 && <Divider sx={{ opacity: 0.5, marginLeft: '56px' }} />}
+        <div key={item.tokenInfo.address}>
+          {index > 0 && <Separator className="ml-14 opacity-50" />}
           <AssetRow
             item={item}
             chainId={chainId}
@@ -132,17 +132,16 @@ const AssetList = ({ items }: { items: Balances['items'] }) => {
             showEarn={isEarnPromoEnabled}
             showStake={isStakingPromoEnabled}
           />
-        </Box>
+        </div>
       ))}
-    </Box>
+    </div>
   )
 }
 
 export const isNonZeroBalance = (item: Balances['items'][number]) => item.balance !== '0'
 
 const AssetsWidget = () => {
-  const router = useRouter()
-  const { safe } = router.query
+  const safeLinkQuery = useSafeLinkQuery()
   const { loading, balances } = useBalances()
   const visibleAssets = useVisibleAssets()
 
@@ -153,9 +152,9 @@ const AssetsWidget = () => {
   const viewAllUrl = useMemo(
     () => ({
       pathname: AppRoutes.balances.index,
-      query: { safe },
+      query: safeLinkQuery,
     }),
-    [safe],
+    [safeLinkQuery],
   )
 
   const isLoading = loading || !balances.fiatTotal
@@ -164,7 +163,7 @@ const AssetsWidget = () => {
 
   return (
     <WidgetCard title="Top assets" viewAllUrl={items.length > 0 ? viewAllUrl : undefined} testId="assets-widget">
-      <Box>{items.length > 0 ? <AssetList items={items} /> : <NoAssets />}</Box>
+      <div>{items.length > 0 ? <AssetList items={items} /> : <NoAssets />}</div>
     </WidgetCard>
   )
 }

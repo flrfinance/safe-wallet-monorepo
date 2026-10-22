@@ -1,68 +1,56 @@
-import AddAccounts from '../AddAccounts'
-import EmptySafeAccounts from './EmptySafeAccounts'
-import { Stack, Typography } from '@mui/material'
-import { useMemo } from 'react'
+import AddAccountsChooser from '../AddAccountsChooser'
+import EmptySafeAccounts from '@safe-global/views/features/spaces/components/SafeAccounts/EmptySafeAccounts'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@safe-global/views/components/ui/input-group'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { useMemo, useState } from 'react'
 import { useAppSelector } from '@/store'
-import { selectOrderByPreference } from '@/store/orderByPreferenceSlice'
-import { selectAllAddedSafes } from '@/store/addedSafesSlice'
-import { selectAllAddressBooks, selectAllVisitedSafes, selectUndeployedSafes } from '@/store/slices'
+import { getSpaceOrderScope, OrderByOption, selectOrderByPreference } from '@/store/orderByPreferenceSlice'
 import {
   type AllSafeItems,
   type SafeItem,
-  _buildSafeItem,
-  _getMultiChainAccounts,
-  _getSingleChainAccounts,
-  getComparator,
-  useAllOwnedSafes,
+  _groupAndSort,
+  flattenSafeItems,
+  useSafeOrderComparator,
+  useSafesSearch,
+  useSaveManualOrder,
 } from '@/hooks/safes'
-import useWallet from '@/hooks/wallets/useWallet'
-import { getFlaggedSimilarAddressSet } from '@safe-global/utils/utils/addressSimilarity'
-import { useSpaceSafes, useIsAdmin, useIsInvited } from '@/features/spaces'
+import useDebounce from '@safe-global/utils/hooks/useDebounce'
+import { useSimilarityClusters } from '@/features/address-poisoning'
+import { useSpaceSafes, useIsInvited, useIsAdmin, useCurrentSpaceId } from '@/features/spaces'
+import { SafeAccountsTable } from '@/features/myAccounts'
+import SafeListSortToggle from '@/components/common/SafeListSortToggle'
 import { getRtkQueryErrorMessage } from '@/utils/rtkQuery'
-import { TriangleAlert, RotateCw } from 'lucide-react'
+import { TriangleAlert, RotateCw, Search } from 'lucide-react'
 import PreviewInvite from '../InviteBanner/PreviewInvite'
 import { SPACE_LABELS, SPACE_EVENTS } from '@/services/analytics/events/spaces'
 import Track from '@/components/common/Track'
-import AccountsSafesList from './AccountsSafesList'
-
-const _groupAndSort = (
-  items: SafeItem[],
-  sortComparator: (a: AllSafeItems[number], b: AllSafeItems[number]) => number,
-): AllSafeItems => {
-  const multi = _getMultiChainAccounts(items)
-  const single = _getSingleChainAccounts(items, multi)
-  return [...multi, ...single].sort(sortComparator)
-}
+import SecurityBanner from '@/components/common/TrustedSafesModal/SecurityBanner'
+import SpaceSafeContextMenu from './SpaceSafeContextMenu'
+import SeatLimitBanner from './SeatLimitBanner'
+import SelectedCounter from '@safe-global/views/features/spaces/components/SelectedCounter'
+import { seatsTooltip } from '../Plans/PlanStatusCard'
+import { useSeatUpsell } from '../../hooks/useSeatUpsell'
+import { countSeats } from '@/utils/spaces'
 
 const SpaceSafeAccounts = () => {
   const { allSafes, isError: isSpaceSafesError, error: spaceSafesError, refetch: refetchSpaceSafes } = useSpaceSafes()
-  const isAdmin = useIsAdmin()
   const isInvited = useIsInvited()
+  const isAdmin = useIsAdmin()
+  const spaceId = useCurrentSpaceId()
+  const orderScope = spaceId ? getSpaceOrderScope(spaceId) : undefined
 
   // Use same organization logic as onboarding
   const { orderBy } = useAppSelector(selectOrderByPreference)
-  const sortComparator = getComparator(orderBy)
-  const { address: walletAddress = '' } = useWallet() || {}
-  const [allOwned = {}] = useAllOwnedSafes(walletAddress)
-  const allAdded = useAppSelector(selectAllAddedSafes)
-  const allUndeployed = useAppSelector(selectUndeployedSafes)
-  const allVisitedSafes = useAppSelector(selectAllVisitedSafes)
-  const allSafeNames = useAppSelector(selectAllAddressBooks)
+  const sortComparator = useSafeOrderComparator(orderScope)
+  const saveManualOrder = useSaveManualOrder(orderScope)
 
-  const spaceSafeItems = useMemo(() => {
-    const buildItem = (chainId: string, address: string) =>
-      _buildSafeItem(chainId, address, walletAddress, allAdded, allOwned, allUndeployed, allVisitedSafes, allSafeNames)
+  // useSpaceSafes already resolves names via the merged (workspace-priority, local fallback) address
+  // book, so flatten those items rather than rebuilding them — rebuilding via buildSafeItem would
+  // re-derive the name from the local address book only and drop the workspace name.
+  const spaceSafeItems = useMemo<SafeItem[]>(() => flattenSafeItems(allSafes ?? []), [allSafes])
 
-    // Only include safes that are part of the current space
-    const spaceSafes = allSafes?.flatMap((item) => ('safes' in item ? item.safes : [item])) || []
-
-    return spaceSafes.map((safe) => buildItem(safe.chainId, safe.address))
-  }, [allAdded, allOwned, allUndeployed, walletAddress, allVisitedSafes, allSafeNames, allSafes])
-
-  const similarAddresses = useMemo<Set<string>>(
-    () => getFlaggedSimilarAddressSet(spaceSafeItems.map((s) => s.address)),
-    [spaceSafeItems],
-  )
+  const spaceSafeAddresses = useMemo(() => spaceSafeItems.map((s) => s.address), [spaceSafeItems])
+  const { flagged: similarAddresses, groupIdByAddress: similarityGroups } = useSimilarityClusters(spaceSafeAddresses)
 
   // Group and sort
   const displaySafes = useMemo<AllSafeItems>(
@@ -70,21 +58,62 @@ const SpaceSafeAccounts = () => {
     [spaceSafeItems, sortComparator],
   )
 
-  const hasResults = displaySafes.length > 0
+  const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounce(searchQuery.trim(), 300)
+  const filteredSafes = useSafesSearch(displaySafes, debouncedSearchQuery)
+  const visibleSafes = debouncedSearchQuery ? filteredSafes : displaySafes
+
+  const isSpaceEmpty = allSafes.length === 0
+  const { isSafePro, tierName, limit } = useSeatUpsell()
+  const usedSeats = countSeats(spaceSafeAddresses)
+  const isAtSeatLimit = isSafePro && limit !== null && usedSeats >= limit
 
   return (
     <>
       {isInvited && <PreviewInvite />}
-      <Typography variant="h1" mb={3}>
-        Safe Accounts
+      <Typography variant="h2" className="mb-6 font-bold leading-[1] tracking-tight">
+        Safe accounts
       </Typography>
-      {isAdmin && (
-        <Stack direction="row" justifyContent="flex-end" mt={-3} mb={3}>
+
+      {isAtSeatLimit && <SeatLimitBanner className="mb-6" />}
+
+      <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
+        {!isSpaceEmpty && !isSpaceSafesError && (
+          <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+            {isSafePro && limit !== null && (
+              <SelectedCounter
+                count={usedSeats}
+                limit={limit}
+                isAtLimit={isAtSeatLimit}
+                showSelected={false}
+                tooltip={seatsTooltip(tierName, limit)}
+              />
+            )}
+            <InputGroup variant="search" inputSize="lg" className="flex-1">
+              <InputGroupAddon>
+                <Search className="size-4" />
+              </InputGroupAddon>
+              <InputGroupInput
+                placeholder="by name, address or network"
+                aria-label="Search Safe accounts by name, address or network"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoComplete="off"
+                data-testid="space-safe-accounts-search-input"
+              />
+            </InputGroup>
+            <SafeListSortToggle
+              size="lg"
+              className="border-border shadow-xs hover:bg-foreground/[0.06] aria-expanded:bg-foreground/[0.06]"
+            />
+          </div>
+        )}
+        {isAdmin && (
           <Track {...SPACE_EVENTS.ADD_ACCOUNTS_MODAL} label={SPACE_LABELS.accounts_page}>
-            <AddAccounts />
+            <AddAccountsChooser buttonVariant="default" buttonLabel="Add accounts" entryPoint="safe_accounts" />
           </Track>
-        </Stack>
-      )}
+        )}
+      </div>
 
       {isSpaceSafesError ? (
         <div className="flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 px-5 py-4">
@@ -104,10 +133,32 @@ const SpaceSafeAccounts = () => {
             Retry
           </button>
         </div>
-      ) : !hasResults && allSafes && allSafes.length === 0 ? (
+      ) : isSpaceEmpty ? (
         <EmptySafeAccounts />
+      ) : visibleSafes.length === 0 ? (
+        <Typography variant="paragraph-small" color="muted" align="center" className="py-8">
+          No Safe accounts match your search
+        </Typography>
       ) : (
-        <AccountsSafesList safes={displaySafes} similarAddresses={similarAddresses} />
+        <div className="flex flex-col gap-4">
+          {similarAddresses.size > 0 && <SecurityBanner title="Verify before you trust" />}
+          <SafeAccountsTable
+            items={visibleSafes}
+            // The table sits directly on the page background here, so the card outline is dropped.
+            bordered={false}
+            // Inside a workspace every Safe belongs to it, so the Workspaces column adds no information.
+            columns={['name', 'threshold', 'networks', 'pending', 'balance', 'actions']}
+            similarityGroups={similarityGroups}
+            // Column sorting is only offered in Name mode; Last visited / Manual own the order.
+            sortableColumns={orderBy === OrderByOption.NAME}
+            renderActions={(line) =>
+              line.variant === 'child' ? null : <SpaceSafeContextMenu safeItem={line.source} />
+            }
+            // Reorderable in every sort mode; suppressed while searching, where a drop would persist
+            // only the filtered subset.
+            reorder={!debouncedSearchQuery && orderScope ? { onReorder: saveManualOrder } : undefined}
+          />
+        </div>
       )}
     </>
   )

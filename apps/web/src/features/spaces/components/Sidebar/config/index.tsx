@@ -1,5 +1,4 @@
 import {
-  House,
   ArrowRightLeft,
   WalletCards,
   BookUser,
@@ -16,14 +15,18 @@ import {
   ChevronLeft,
   PanelRight,
   EllipsisVertical,
+  Shield,
+  History,
+  Landmark,
+  ListChecks,
 } from 'lucide-react'
 import { AppRoutes } from '@/config/routes'
-import type { SidebarItemConfig, SidebarGroupConfig } from '../types'
+import type { SidebarItemConfig, SidebarGroupConfig } from '@safe-global/views/features/spaces/components/Sidebar/types'
 
 export const spacesMainNavigation: SidebarItemConfig[] = [
   {
-    icon: House,
-    label: 'Home',
+    icon: LayoutGrid,
+    label: 'Dashboard',
     href: AppRoutes.spaces.index,
   },
   // TODO: Activate when Spaces Transactions page is ready
@@ -34,13 +37,25 @@ export const spacesMainNavigation: SidebarItemConfig[] = [
   // },
   {
     icon: WalletCards,
-    label: 'Accounts',
+    label: 'Safe accounts',
     href: AppRoutes.spaces.safeAccounts,
   },
   {
     icon: BookUser,
     label: 'Address book',
     href: AppRoutes.spaces.addressBook,
+  },
+  {
+    icon: Landmark,
+    label: 'Policies',
+    href: AppRoutes.spaces.policies,
+    activeMemberOnly: true,
+  },
+  {
+    icon: History,
+    label: 'Activity',
+    href: AppRoutes.spaces.activity,
+    activeMemberOnly: true,
   },
 ]
 
@@ -52,18 +67,22 @@ export const spacesSetupGroup: SidebarGroupConfig = {
       label: 'Team',
       href: AppRoutes.spaces.members,
     },
-    // TODO: Activate when Spaces Security page is ready
-    // {
-    //   icon: Shield,
-    //   label: 'Security',
-    //   href: AppRoutes.spaces.security,
-    //   activeMemberOnly: true,
-    // },
+    {
+      icon: Shield,
+      label: 'Security hub',
+      href: AppRoutes.spaces.security,
+      activeMemberOnly: true,
+    },
     {
       icon: Settings,
       label: 'Settings',
       href: AppRoutes.spaces.settings,
       activeMemberOnly: true,
+    },
+    {
+      icon: ListChecks,
+      label: 'Plans',
+      href: AppRoutes.spaces.plans,
     },
   ],
 }
@@ -110,12 +129,12 @@ export const safeDefiGroup: SidebarGroupConfig = {
       href: AppRoutes.bridge,
     },
     {
-      icon: Database,
+      icon: TrendingUp,
       label: 'Earn',
       href: AppRoutes.earn,
     },
     {
-      icon: TrendingUp,
+      icon: Database,
       label: 'Stake',
       href: AppRoutes.stake,
     },

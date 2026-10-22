@@ -1,8 +1,7 @@
 import type { Transaction } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
 import { useTransactionType } from '@/hooks/useTransactionType'
-import { Box } from '@mui/material'
-import css from './styles.module.css'
-import SafeAppIconCard from '@/components/safe-apps/SafeAppIconCard'
+import css from '@safe-global/views/components/transactions/TxType/styles.module.css'
+import SafeAppIconCard from '@safe-global/views/components/safe-apps/SafeAppIconCard'
 import { isValidElement } from 'react'
 
 type TxTypeProps = {
@@ -13,7 +12,7 @@ export const TxTypeIcon = ({ tx }: TxTypeProps) => {
   const type = useTransactionType(tx)
 
   return (
-    <Box className={css.txType}>
+    <div className={css.txType}>
       {isValidElement(type.icon) ? (
         type.icon
       ) : typeof type.icon == 'string' ? (
@@ -25,7 +24,7 @@ export const TxTypeIcon = ({ tx }: TxTypeProps) => {
           fallback="/images/transactions/custom.svg"
         />
       ) : null}
-    </Box>
+    </div>
   )
 }
 
@@ -39,7 +38,7 @@ const TxType = ({ tx }: TxTypeProps) => {
   const type = useTransactionType(tx)
 
   return (
-    <Box className={css.txType}>
+    <div className={css.txType}>
       {isValidElement(type.icon) ? (
         type.icon
       ) : typeof type.icon == 'string' ? (
@@ -53,7 +52,7 @@ const TxType = ({ tx }: TxTypeProps) => {
       ) : null}
 
       <span className={css.txTypeText}>{type.text}</span>
-    </Box>
+    </div>
   )
 }
 

@@ -8,6 +8,12 @@ const mockPush = jest.fn()
 const mockDispatch = jest.fn()
 const mockCreateSpaceWithUser = jest.fn()
 
+// Cut the DialogActions -> CheckWallet -> safeCoreSDK -> chains.ts import chain (circular AppRoutes) in unit tests.
+jest.mock('@/components/common/CheckWallet', () => ({
+  __esModule: true,
+  default: ({ children }: { children: (ok: boolean) => unknown }) => children(true),
+}))
+
 jest.mock('@/services/analytics', () => ({
   trackEvent: jest.fn(),
 }))
@@ -26,6 +32,8 @@ jest.mock('next/router', () => ({
 jest.mock('@/store', () => ({
   useAppDispatch: () => mockDispatch,
 }))
+
+jest.mock('@/hooks/useDarkMode', () => ({ useDarkMode: () => false }))
 
 jest.mock('@/store/notificationsSlice', () => ({
   showNotification: (payload: unknown) => ({ type: 'notifications/show', payload }),
@@ -49,13 +57,13 @@ jest.mock('@/components/common/ModalDialog', () => ({
   default: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
 }))
 
-jest.mock('@/components/common/ExternalLink', () => ({
+jest.mock('@safe-global/views/components/common/ExternalLink', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }))
 
 jest.mock('@/config/routes', () => ({
-  AppRoutes: { spaces: { index: '/spaces' }, privacy: '/privacy' },
+  AppRoutes: { spaces: { index: '/spaces' } },
 }))
 
 describe('SpaceCreationModal tracking', () => {
@@ -64,7 +72,9 @@ describe('SpaceCreationModal tracking', () => {
   })
 
   it('tracks WORKSPACE_CREATED with spaceId sent to both GA (label) and Mixpanel (additionalParameters) after successful creation', async () => {
-    mockCreateSpaceWithUser.mockResolvedValue({ data: { id: 99, name: 'My Space' } })
+    mockCreateSpaceWithUser.mockResolvedValue({
+      data: { id: 99, uuid: '11111111-1111-1111-1111-111111111111', name: 'My Space' },
+    })
 
     render(<SpaceCreationModal onClose={jest.fn()} />)
 
@@ -78,10 +88,84 @@ describe('SpaceCreationModal tracking', () => {
 
     await waitFor(() => {
       expect(trackEvent).toHaveBeenCalledWith(
-        { ...SPACE_EVENTS.WORKSPACE_CREATED, label: '99' },
-        { workspace_id: '99' },
+        { ...SPACE_EVENTS.WORKSPACE_CREATED, label: '11111111-1111-1111-1111-111111111111' },
+        { workspace_id: '11111111-1111-1111-1111-111111111111' },
       )
     })
+  })
+
+  it('opens the new Workspace after successful creation', async () => {
+    mockCreateSpaceWithUser.mockResolvedValue({
+      data: { id: 99, uuid: '11111111-1111-1111-1111-111111111111', name: 'My Space' },
+    })
+
+    render(<SpaceCreationModal onClose={jest.fn()} />)
+
+    fireEvent.change(screen.getByTestId('space-name-input'), { target: { value: 'My Space' } })
+
+    const submitButton = screen.getByTestId('create-space-modal-button')
+    await waitFor(() => {
+      expect(submitButton).not.toBeDisabled()
+    })
+    fireEvent.click(submitButton)
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/spaces',
+        query: { spaceId: '11111111-1111-1111-1111-111111111111' },
+      })
+    })
+  })
+
+  it('does not open a Workspace when the API returns an error', async () => {
+    mockCreateSpaceWithUser.mockResolvedValue({ error: { status: 500 } })
+
+    render(<SpaceCreationModal onClose={jest.fn()} />)
+
+    fireEvent.change(screen.getByTestId('space-name-input'), { target: { value: 'My Space' } })
+
+    const submitButton = screen.getByTestId('create-space-modal-button')
+    await waitFor(() => {
+      expect(submitButton).not.toBeDisabled()
+    })
+    fireEvent.click(submitButton)
+
+    await waitFor(() => {
+      expect(mockCreateSpaceWithUser).toHaveBeenCalled()
+    })
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the backend error message when creation fails', async () => {
+    mockCreateSpaceWithUser.mockResolvedValue({ error: { status: 422, data: { message: 'Name already taken' } } })
+
+    render(<SpaceCreationModal onClose={jest.fn()} />)
+
+    fireEvent.change(screen.getByTestId('space-name-input'), { target: { value: 'My Space' } })
+
+    const submitButton = screen.getByTestId('create-space-modal-button')
+    await waitFor(() => {
+      expect(submitButton).not.toBeDisabled()
+    })
+    fireEvent.click(submitButton)
+
+    expect(await screen.findByText('Name already taken')).toBeInTheDocument()
+  })
+
+  it('falls back to a generic message when the backend provides no error message', async () => {
+    mockCreateSpaceWithUser.mockResolvedValue({ error: { status: 500, data: {} } })
+
+    render(<SpaceCreationModal onClose={jest.fn()} />)
+
+    fireEvent.change(screen.getByTestId('space-name-input'), { target: { value: 'My Space' } })
+
+    const submitButton = screen.getByTestId('create-space-modal-button')
+    await waitFor(() => {
+      expect(submitButton).not.toBeDisabled()
+    })
+    fireEvent.click(submitButton)
+
+    expect(await screen.findByText(/Something went wrong \(500\)/)).toBeInTheDocument()
   })
 
   it('does not track WORKSPACE_CREATED when the API returns an error', async () => {

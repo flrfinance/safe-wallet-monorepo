@@ -5,13 +5,16 @@ import * as navigation from '../pages/navigation.page.js'
 import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import { getEvents, events, checkDataLayerEvents } from '../../support/utils/gtag.js'
 import * as wallet from '../../support/utils/wallet.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let safeAppSafes = []
 let iframeSelector
 
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
-const signer2 = walletCredentials.OWNER_1_PRIVATE_KEY
+let signer, signer2
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+  signer2 = walletCredentials.OWNER_1_PRIVATE_KEY
+})
 
 describe('Transaction Builder happy path tests', { defaultCommandTimeout: 20000 }, () => {
   before(async () => {
@@ -41,14 +44,11 @@ describe('Transaction Builder happy path tests', { defaultCommandTimeout: 20000 
       ]
 
       const appUrl = constants.TX_Builder_url
-      iframeSelector = `iframe[id="iframe-${encodeURIComponent(appUrl)}"]`
-      const visitUrl = `/apps/open?safe=${safeAppSafes.SEP_SAFEAPP_SAFE_1}&appUrl=${encodeURIComponent(appUrl)}`
+      iframeSelector = safeapps.getSafeAppIframeSelector(appUrl)
 
-      cy.visit(constants.transactionQueueUrl + safeAppSafes.SEP_SAFEAPP_SAFE_1)
-      wallet.connectSigner(signer)
-      cy.wait(5000)
+      wallet.connectSignerViaStorage(signer, constants.transactionQueueUrl + safeAppSafes.SEP_SAFEAPP_SAFE_1)
       createtx.deleteAllTx()
-      cy.visit(visitUrl)
+      safeapps.openSafeAppWithAddressBookPermission(safeAppSafes.SEP_SAFEAPP_SAFE_1, appUrl)
       navigation.verifyTxBtnStatus(constants.enabledStates.enabled)
       cy.enter(iframeSelector).then((getBody) => {
         getBody().findByLabelText(safeapps.enterAddressStr).type(constants.SAFE_APP_ADDRESS)
@@ -72,13 +72,13 @@ describe('Transaction Builder happy path tests', { defaultCommandTimeout: 20000 
       navigation.verifyTxBtnStatus(constants.enabledStates.enabled)
       createtx.clickOnConfirmTransactionBtn()
       createtx.clickOnContinueSignTransactionBtn()
-      createtx.selectComboButtonOption('sign')
-      createtx.clickOnSignTransactionBtn()
+      createtx.signAndOpenExecuteStep()
+      createtx.clickOnExecuteLaterBtn()
       navigation.clickOnWalletExpandMoreIcon()
       navigation.clickOnDisconnectBtn()
       wallet.connectSigner(signer)
       navigation.verifyTxBtnStatus(constants.enabledStates.enabled)
-      createtx.deleteTx()
+      createtx.deleteAllTx()
       createtx.verifyNumberOfTransactions(0)
       getEvents()
       checkDataLayerEvents(tx_created)

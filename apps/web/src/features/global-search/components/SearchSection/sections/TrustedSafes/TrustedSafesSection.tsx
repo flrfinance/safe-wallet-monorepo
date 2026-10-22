@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { isMultiChainSafeItem, useAllSafesGrouped, flattenSafeItems } from '@/hooks/safes'
-import SafeCardReadOnly from '@/features/spaces/components/SafeAccounts/SafeCardReadOnly'
+import { SafeCardReadOnly } from '@/features/spaces'
 import type { SectionItemProps } from '../../sectionItems'
-import useGlobalSearchFilter from '@/features/global-search/hooks/useGlobalSearchFilter'
+import useGlobalSearchFilter from '../../../../hooks/useGlobalSearchFilter'
 import useMatchSafe from '@/hooks/useMatchSafe'
-import SectionWrapper from '../../SectionWrapper'
+import SectionWrapper from '@safe-global/views/features/global-search/components/SearchSection/SectionWrapper'
 
 const TrustedSafesSection = ({ query, label }: SectionItemProps) => {
   const { allMultiChainSafes, allSingleSafes } = useAllSafesGrouped()

@@ -1,8 +1,10 @@
 import * as constants from '../../support/constants'
 import { continueSignBtn, clickOnConfirmTransactionBtn } from './create_tx.pages'
+import { safeProOffStorage } from './spending_limits.pages'
 import * as main from './main.page'
 import * as walletUtils from '../../support/utils/wallet.js'
 import safes from '../../fixtures/safes/static.js'
+import * as ls from '../../support/localstorage_data.js'
 
 // Safe Shield Page Object
 
@@ -146,8 +148,7 @@ export function verifySafeShieldDisplayed() {
 
 // Verify Safe Shield logo footer is displayed
 export function verifySecuredByFooter() {
-  // Check for the Safe Shield logo SVG icon
-  cy.get('[data-testid="safe-shield-widget"]').find('.MuiSvgIcon-root').should('be.visible')
+  cy.get('[data-testid="safe-shield-widget"]').find('[data-testid="safe-shield-logo"]').should('be.visible')
 }
 
 // Verify status shows "Checks passed"
@@ -295,7 +296,8 @@ export function verifyRiskConfirmationCheckboxUnchecked() {
 
 // Check the risk confirmation checkbox
 export function checkRiskConfirmationCheckbox() {
-  cy.get(riskConfirmationCheckbox).scrollIntoView().find('input[type="checkbox"]').check()
+  cy.get(riskConfirmationCheckbox).scrollIntoView().find('[role="checkbox"]').click()
+  cy.get(riskConfirmationCheckbox).find('[role="checkbox"]').should('have.attr', 'aria-checked', 'true')
 }
 
 //Verify continue button is disabled
@@ -335,24 +337,21 @@ export function navigateToTransactionAndSetupCopilot(
   addressBookData = null,
   safeAddress = null,
 ) {
-  // Clear localStorage to ensure clean state
   cy.clearLocalStorage()
 
-  // Use provided safeAddress or default to MATIC_STATIC_SAFE_30
   const safe = safeAddress || safes.MATIC_STATIC_SAFE_30
 
-  // Set up localStorage before navigation if address book data is provided
-  if (addressBookData) {
-    cy.visit(constants.transactionUrl + safe + transactionId, {
-      onBeforeLoad: (win) => {
-        win.localStorage.setItem(constants.localStorageKeys.SAFE_v2__addressBook, JSON.stringify(addressBookData))
-      },
-    })
-  } else {
-    cy.visit(constants.transactionUrl + safe + transactionId)
-  }
+  const extraStorage = addressBookData
+    ? { ...safeProOffStorage, [constants.localStorageKeys.SAFE_v2__addressBook]: addressBookData }
+    : safeProOffStorage
 
-  walletUtils.connectSigner(signer)
+  walletUtils.connectSignerViaStorage(signer, constants.transactionUrl + safe + transactionId, {
+    extraStorage,
+    // clearLocalStorage above wipes the cookie consent seeded in the global beforeEach
+    onBeforeLoad: (win) => {
+      win.localStorage.setItem(constants.localStorageKeys.SAFE_v2_cookies, ls.cookies.acceptedCookies)
+    },
+  })
 
   clickOnConfirmTransactionBtn()
   verifySafeShieldDisplayed()

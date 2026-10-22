@@ -3,7 +3,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { useChainsGetIndexingStatusV1Query } from '@safe-global/store/gateway/AUTO_GENERATED/chains'
 import useChainId from '@/hooks/useChainId'
 import { STATUS_PAGE_URL } from '@/config/constants'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@safe-global/views/components/ui/tooltip'
 import StatusIcon from '@/public/images/sidebar/status.svg'
 import css from './styles.module.css'
 
@@ -14,7 +14,7 @@ type Status = 'synced' | 'slow' | 'outOfSync'
 
 const STATUS_LABEL: Record<Status, string> = {
   synced: 'Synced',
-  slow: 'Slow network',
+  slow: 'Network delays',
   outOfSync: 'Out of sync',
 }
 
@@ -24,7 +24,7 @@ const getStatus = (synced: boolean, lastSync: number): Status => {
   return 'outOfSync'
 }
 
-export const SidebarIndexingStatus = (): ReactElement | null => {
+export const SidebarIndexingStatus = ({ isSafeSidebar = true }: { isSafeSidebar?: boolean }): ReactElement | null => {
   const chainId = useChainId()
   const { data, isLoading, isError } = useChainsGetIndexingStatusV1Query(
     { chainId },
@@ -37,6 +37,9 @@ export const SidebarIndexingStatus = (): ReactElement | null => {
 
   const status = getStatus(data.synced, data.lastSync)
   const time = formatDistanceToNow(data.lastSync, { addSuffix: true })
+  const tooltipText = isSafeSidebar
+    ? `Last synced with the blockchain ${time}`
+    : 'Blockchain sync status across networks'
 
   return (
     <Tooltip>
@@ -55,7 +58,7 @@ export const SidebarIndexingStatus = (): ReactElement | null => {
       >
         <StatusIcon className={css.indexingStatusIcon} />
       </TooltipTrigger>
-      <TooltipContent side="top">{`Last synced with the blockchain ${time}`}</TooltipContent>
+      <TooltipContent side="top">{tooltipText}</TooltipContent>
     </Tooltip>
   )
 }

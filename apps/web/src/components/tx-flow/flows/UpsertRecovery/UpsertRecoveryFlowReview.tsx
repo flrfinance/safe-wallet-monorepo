@@ -1,4 +1,3 @@
-import { SvgIcon, Tooltip, Typography } from '@mui/material'
 import { useContext, useEffect } from 'react'
 import type { ReactElement } from 'react'
 
@@ -6,25 +5,23 @@ import EthHashInfo from '@/components/common/EthHashInfo'
 import { TxDataRow } from '@/components/transactions/TxDetails/Summary/TxDataRow'
 import { SafeTxContext } from '@/components/tx-flow/SafeTxProvider'
 import useSafeInfo from '@/hooks/useSafeInfo'
-import InfoIcon from '@/public/images/notifications/info.svg'
-import { Errors, logError } from '@/services/exceptions'
-import { getRecoveryUpsertTransactions } from '@/features/recovery/services/setup'
+import InfoIcon from '@safe-global/views/assets/images/notifications/info.svg'
+import { getRecoveryUpsertTransactions } from '@/features/recovery/services'
 import { useWeb3ReadOnly } from '@/hooks/wallets/web3ReadOnly'
 import { createMultiSendCallOnlyTx, createTx } from '@/services/tx/tx-sender'
-import { UpsertRecoveryFlowFields } from '.'
-import { TOOLTIP_TITLES } from '../../common/constants'
-import { useRecoveryPeriods } from './useRecoveryPeriods'
+import { TOOLTIP_TITLES } from '@safe-global/views/components/tx-flow/common/constants'
 import type { UpsertRecoveryFlowProps } from '.'
-import { isCustomDelaySelected } from './utils'
+import { getDetailedPeriod } from '@safe-global/utils/utils/date'
 import { TxFlowContext, type TxFlowContextType } from '../../TxFlowProvider'
 import ReviewTransaction, { type ReviewTransactionProps } from '@/components/tx/ReviewTransactionV2'
 import ErrorMessage from '@/components/tx/ErrorMessage'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@safe-global/views/components/ui/tooltip'
 
 export function UpsertRecoveryFlowReview({ children, ...props }: ReviewTransactionProps): ReactElement {
   const web3ReadOnly = useWeb3ReadOnly()
   const { safe, safeAddress } = useSafeInfo()
-  const { setSafeTx, safeTxError, setSafeTxError } = useContext(SafeTxContext)
-  const periods = useRecoveryPeriods()
+  const { setSafeTx, setSafeTxError } = useContext(SafeTxContext)
 
   const { data } = useContext<TxFlowContextType<UpsertRecoveryFlowProps>>(TxFlowContext)
 
@@ -46,26 +43,14 @@ export function UpsertRecoveryFlowReview({ children, ...props }: ReviewTransacti
       .catch(setSafeTxError)
   }, [data, safe.chainId, safeAddress, setSafeTx, setSafeTxError, web3ReadOnly])
 
-  useEffect(() => {
-    if (safeTxError) {
-      logError(Errors._809, safeTxError.message)
-    }
-  }, [safeTxError])
-
   const isEdit = !!data?.moduleAddress
 
   if (!data) {
     return <ErrorMessage>No data provided</ErrorMessage>
   }
 
-  const { recoverer, customDelay, selectedDelay } = data
-
-  const isCustomDelay = isCustomDelaySelected(selectedDelay ?? '')
-
-  const expiryLabel = periods.expiration.find(({ value }) => value === data?.[UpsertRecoveryFlowFields.expiry])!.label
-  const delayLabel = isCustomDelay
-    ? `${customDelay} days`
-    : periods.delay.find(({ value }) => value === selectedDelay)?.label
+  const { recoverer, delay, expiry } = data
+  const expirySeconds = Number(expiry)
 
   return (
     <ReviewTransaction {...props}>
@@ -81,43 +66,33 @@ export function UpsertRecoveryFlowReview({ children, ...props }: ReviewTransacti
         title={
           <>
             Review window
-            <Tooltip placement="top" title={TOOLTIP_TITLES.REVIEW_WINDOW}>
-              <span>
-                <SvgIcon
-                  component={InfoIcon}
-                  inheritViewBox
-                  fontSize="small"
-                  color="border"
-                  sx={{ verticalAlign: 'middle', ml: 0.5 }}
-                />
-              </span>
+            <Tooltip>
+              <TooltipTrigger render={<span />}>
+                <InfoIcon className="ml-1 inline size-4 align-middle text-[var(--color-border-main)]" />
+              </TooltipTrigger>
+              <TooltipContent>{TOOLTIP_TITLES.REVIEW_WINDOW}</TooltipContent>
             </Tooltip>
           </>
         }
       >
-        {delayLabel}
+        {getDetailedPeriod(Number(delay))}
       </TxDataRow>
 
-      {expiryLabel !== '0' && (
+      {expirySeconds !== 0 && (
         <TxDataRow
           title={
             <>
               Proposal expiry
-              <Tooltip placement="top" title={TOOLTIP_TITLES.PROPOSAL_EXPIRY}>
-                <span>
-                  <SvgIcon
-                    component={InfoIcon}
-                    inheritViewBox
-                    fontSize="small"
-                    color="border"
-                    sx={{ verticalAlign: 'middle', ml: 0.5 }}
-                  />
-                </span>
+              <Tooltip>
+                <TooltipTrigger render={<span />}>
+                  <InfoIcon className="ml-1 inline size-4 align-middle text-[var(--color-border-main)]" />
+                </TooltipTrigger>
+                <TooltipContent>{TOOLTIP_TITLES.PROPOSAL_EXPIRY}</TooltipContent>
               </Tooltip>
             </>
           }
         >
-          {expiryLabel}
+          {getDetailedPeriod(expirySeconds)}
         </TxDataRow>
       )}
 

@@ -4,10 +4,13 @@ import * as spendinglimit from '../pages/spending_limits.pages'
 import * as owner from '../pages/owners.pages'
 import { getSafes, CATEGORIES } from '../../support/safes/safesHandler.js'
 import * as wallet from '../../support/utils/wallet.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
+let signer
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+})
 
 describe('[SMOKE] Spending limits tests', () => {
   before(async () => {
@@ -15,14 +18,21 @@ describe('[SMOKE] Spending limits tests', () => {
   })
 
   beforeEach(() => {
-    cy.visit(constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8, {
+      extraStorage: spendinglimit.safeProOffStorage,
+    })
     owner.waitForConnectionStatus()
     cy.get(spendinglimit.spendingLimitsSection).should('be.visible')
     spendinglimit.clickOnNewSpendingLimitBtn()
   })
 
   it('Verify A valid ENS name is resolved successfully', () => {
+    cy.fixture('ens_e2etestsafe').then((results) => {
+      cy.intercept('POST', '**', (req) => {
+        const result = results[req.body?.params?.[0]?.to?.toLowerCase()]
+        if (result) req.reply({ body: { jsonrpc: '2.0', id: req.body.id, result } })
+      })
+    })
     spendinglimit.enterBeneficiaryAddress(constants.ENS_TEST_SEPOLIA)
     spendinglimit.checkBeneficiaryENS(staticSafes.SEP_STATIC_SAFE_6)
   })
@@ -56,8 +66,23 @@ describe('[SMOKE] Spending limits tests', () => {
     spendinglimit.verifyDefaultTimeIsSet()
   })
 
-  it('Validate Reset values present in dropdown: One time, 5 minutes, 30 minutes, 1 hr', () => {
+  it('Validate Reset values present in dropdown: One time, 5 minutes, 30 minutes, 1 hr, 1 day, 1 week, 1 month', () => {
     spendinglimit.clickOnTimePeriodDropdown()
     spendinglimit.checkTimeDropdownOptions()
+  })
+})
+
+describe('[SMOKE] Spending limits outside a Workspace', () => {
+  before(async () => {
+    staticSafes = await getSafes(CATEGORIES.static)
+  })
+
+  it('Verify the Safe Pro lock replaces the New spending limit button', () => {
+    wallet.connectSignerViaStorage(signer, constants.setupUrl + staticSafes.SEP_STATIC_SAFE_8)
+    owner.waitForConnectionStatus()
+    cy.get(spendinglimit.spendingLimitsSection).should('be.visible')
+
+    cy.get(spendinglimit.safeProLock).should('be.visible').and('contain', 'Adding spending limits requires Safe Pro')
+    cy.get(spendinglimit.newSpendingLimitBtn).should('not.exist')
   })
 })

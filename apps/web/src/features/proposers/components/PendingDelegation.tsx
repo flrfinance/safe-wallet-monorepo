@@ -1,14 +1,17 @@
 import type { ReactElement } from 'react'
 import { useState } from 'react'
-import { Box, Button, CircularProgress, Typography } from '@mui/material'
-import { Countdown } from '@/components/common/Countdown'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Spinner } from '@safe-global/views/components/ui/spinner'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { Countdown } from '@safe-global/views/components/common/Countdown'
 import EthHashInfo from '@/components/common/EthHashInfo'
 import ErrorMessage from '@/components/tx/ErrorMessage'
+import { getProposerErrorText } from '@/features/proposers/utils/proposerErrors'
 import CopyTooltip from '@/components/common/CopyTooltip'
 import { sameAddress } from '@safe-global/utils/utils/addresses'
 import { signProposerTypedDataForSafe } from '@/features/proposers/utils/utils'
-import { confirmDelegationMessage } from '@/features/proposers/services/delegationMessages'
-import { useSubmitDelegation } from '@/features/proposers/hooks/useSubmitDelegation'
+import { confirmDelegationMessage } from '../services/delegationMessages'
+import { useSubmitDelegation } from '../hooks/useSubmitDelegation'
 import { getTotpExpirationDate } from '@/features/proposers/utils/totp'
 import useChainId from '@/hooks/useChainId'
 import { useCurrentChain } from '@/hooks/useChains'
@@ -21,7 +24,14 @@ import { AppRoutes } from '@/config/routes'
 import { logError } from '@/services/exceptions'
 import ErrorCodes from '@safe-global/utils/services/exceptions/ErrorCodes'
 import { asError } from '@safe-global/utils/services/exceptions/utils'
+import type { DelegateAction } from '@safe-global/utils/services/delegates'
 import type { PendingDelegation as PendingDelegationType } from '@/features/proposers/types'
+import { withSpaceIdInUrl, useUrlSpaceId } from '@/hooks/useUrlSpaceId'
+
+const SIGNING_ACTION_BY_DELEGATION: Record<PendingDelegationType['action'], DelegateAction> = {
+  add: 'add',
+  remove: 'delete',
+}
 
 type PendingDelegationProps = {
   delegation: PendingDelegationType
@@ -36,6 +46,7 @@ function PendingDelegation({ delegation, onRefetch }: PendingDelegationProps): R
   const wallet = useWallet()
   const dispatch = useAppDispatch()
   const origin = useOrigin()
+  const spaceId = useUrlSpaceId()
   const { submitDelegation, isSubmitting } = useSubmitDelegation()
 
   const hasAlreadySigned = delegation.confirmations.some((c) => sameAddress(c.owner.value, wallet?.address))
@@ -47,11 +58,14 @@ function PendingDelegation({ delegation, onRefetch }: PendingDelegationProps): R
     ? `${chain.shortName}:${delegation.parentSafeAddress}`
     : `${chainId}:${delegation.parentSafeAddress}`
   const shareUrl = origin
-    ? `${origin}${AppRoutes.transactions.msg}?safe=${parentSafeId}&messageHash=${delegation.messageHash}`
+    ? withSpaceIdInUrl(
+        `${origin}${AppRoutes.transactions.msg}?safe=${parentSafeId}&messageHash=${delegation.messageHash}`,
+        spaceId,
+      )
     : ''
 
   const handleSign = async () => {
-    if (!wallet?.provider) return
+    if (!wallet?.provider || !chain) return
 
     setError(undefined)
     setIsSignLoading(true)
@@ -59,10 +73,14 @@ function PendingDelegation({ delegation, onRefetch }: PendingDelegationProps): R
     try {
       const signer = await getAssertedChainSigner(wallet.provider)
 
+      const signingAction = SIGNING_ACTION_BY_DELEGATION[delegation.action]
+
       const eoaSignature = await signProposerTypedDataForSafe(
-        chainId,
+        chain,
         delegation.delegateAddress,
         delegation.parentSafeAddress,
+        delegation.nestedSafeAddress,
+        signingAction,
         signer,
       )
 
@@ -107,7 +125,7 @@ function PendingDelegation({ delegation, onRefetch }: PendingDelegationProps): R
         showNotification({
           variant: 'success',
           groupKey: 'delegation-submitted',
-          title: `Proposer ${delegation.action === 'add' ? 'added' : delegation.action === 'edit' ? 'updated' : 'removed'} successfully!`,
+          title: `Proposer ${delegation.action === 'add' ? 'added' : 'removed'} successfully!`,
           message: '',
         }),
       )
@@ -122,14 +140,8 @@ function PendingDelegation({ delegation, onRefetch }: PendingDelegationProps): R
   function renderActionButton(): ReactElement | null {
     if (delegation.status === 'ready') {
       return (
-        <Button
-          size="small"
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          sx={{ minWidth: '140px' }}
-        >
-          {isSubmitting ? <CircularProgress size={16} /> : 'Submit delegation'}
+        <Button size="sm" onClick={handleSubmit} disabled={isSubmitting} className="min-w-[140px]">
+          {isSubmitting ? <Spinner className="size-4" /> : 'Submit delegation'}
         </Button>
       )
     }
@@ -141,7 +153,7 @@ function PendingDelegation({ delegation, onRefetch }: PendingDelegationProps): R
     if (hasAlreadySigned) {
       return (
         <CopyTooltip text={shareUrl} initialToolTipText="Copy link to share">
-          <Button size="small" variant="outlined" sx={{ minWidth: '100px' }} disabled={!shareUrl}>
+          <Button size="sm" variant="outline" className="min-w-[100px]" disabled={!shareUrl}>
             Copy link
           </Button>
         </CopyTooltip>
@@ -149,66 +161,59 @@ function PendingDelegation({ delegation, onRefetch }: PendingDelegationProps): R
     }
 
     return (
-      <Button size="small" variant="contained" onClick={handleSign} disabled={isSignLoading} sx={{ minWidth: '80px' }}>
-        {isSignLoading ? <CircularProgress size={16} /> : 'Sign'}
+      <Button size="sm" onClick={handleSign} disabled={isSignLoading} className="min-w-[80px]">
+        {isSignLoading ? <Spinner className="size-4" /> : 'Sign'}
       </Button>
     )
   }
 
   return (
-    <Box>
-      <Box sx={{ bgcolor: 'var(--color-border-background)', borderRadius: 1, p: 2 }}>
-        <Box display="flex" alignItems="center" gap={3}>
-          <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-            {delegation.action === 'remove'
-              ? 'Remove proposer:'
-              : delegation.action === 'edit'
-                ? 'Edit proposer:'
-                : 'New proposer:'}
+    <div>
+      <div className="rounded-lg bg-[var(--color-border-background)] p-4">
+        <div className="flex items-center gap-6">
+          <Typography variant="paragraph-small" className="whitespace-nowrap">
+            {delegation.action === 'remove' ? 'Remove proposer:' : 'New proposer:'}
           </Typography>
-          <Box sx={{ '& .ethHashInfo-name': { fontWeight: 700 } }}>
-            <EthHashInfo
-              address={delegation.delegateAddress}
-              showCopyButton
-              shortAddress={false}
-              name={delegation.delegateLabel}
-              hasExplorer
-            />
-          </Box>
-        </Box>
-      </Box>
+          <div className="[&_.ethHashInfo-name]:font-bold">
+            <EthHashInfo address={delegation.delegateAddress} showCopyButton shortAddress={false} hasExplorer />
+          </div>
+        </div>
+      </div>
 
-      <Typography variant="caption" color="text.secondary" display="block" mt={1}>
+      <Typography variant="paragraph-mini" color="muted" className="mt-2 block">
         {remainingSeconds > 0 ? (
           <>
             Expires in <Countdown seconds={remainingSeconds} />
           </>
         ) : (
-          <Typography component="span" variant="caption" color="error">
+          <Typography variant="paragraph-mini" className="text-destructive">
             Expired
           </Typography>
         )}
       </Typography>
 
-      <Box display="flex" alignItems="center" justifyContent="space-between" mt={2}>
-        <Typography variant="body1">
-          <Box component="span" fontWeight={700}>
+      <div className="mt-4 flex items-center justify-between">
+        <Typography variant="paragraph">
+          <span className="font-bold">
             {delegation.confirmationsSubmitted}/{delegation.confirmationsRequired}
-          </Box>{' '}
+          </span>{' '}
           signatures collected
         </Typography>
 
         {renderActionButton()}
-      </Box>
+      </div>
 
       {error && (
-        <Box mt={1}>
+        <div className="mt-2">
           <ErrorMessage error={error}>
-            {delegation.status === 'ready' ? 'Error submitting delegation' : 'Error signing delegation'}
+            {getProposerErrorText(
+              error,
+              delegation.status === 'ready' ? 'Error submitting delegation' : 'Error signing delegation',
+            )}
           </ErrorMessage>
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   )
 }
 

@@ -1,14 +1,43 @@
+import { faker } from '@faker-js/faker'
 import { ExecutionMethod } from '@/components/tx/ExecutionMethodSelector'
 import { PayMethod } from '@safe-global/utils/features/counterfactual/types'
 import {
   buildTransactionOptions,
   getDeploymentType,
+  getEffectivePayMethod,
+  getNewSafeHomeUrl,
   getNetworkLabel,
   getPaymentMethodLabel,
   getThresholdLabel,
   getWillRelay,
   shouldShowNetworkWarning,
 } from './utils'
+
+describe('getEffectivePayMethod', () => {
+  it('forces PayLater for multichain deployments when counterfactual is enabled, regardless of selection or auth', () => {
+    expect(getEffectivePayMethod(true, true, PayMethod.PayNow, true)).toBe(PayMethod.PayLater)
+    expect(getEffectivePayMethod(true, false, PayMethod.PayNow, true)).toBe(PayMethod.PayLater)
+    expect(getEffectivePayMethod(true, false, PayMethod.PayLater, true)).toBe(PayMethod.PayLater)
+  })
+
+  it('does not force PayLater for multichain when counterfactual is disabled', () => {
+    // Falls back to the single-chain rule: unauthenticated PayLater -> PayNow.
+    expect(getEffectivePayMethod(true, false, PayMethod.PayLater, false)).toBe(PayMethod.PayNow)
+    expect(getEffectivePayMethod(true, false, PayMethod.PayNow, false)).toBe(PayMethod.PayNow)
+    expect(getEffectivePayMethod(true, false, PayMethod.PayLater, undefined)).toBe(PayMethod.PayNow)
+    expect(getEffectivePayMethod(true, true, PayMethod.PayNow, false)).toBe(PayMethod.PayNow)
+  })
+
+  it('falls back to PayNow for single-chain PayLater when the user is not authenticated', () => {
+    expect(getEffectivePayMethod(false, false, PayMethod.PayLater, true)).toBe(PayMethod.PayNow)
+  })
+
+  it('keeps the selected method for single-chain when authenticated', () => {
+    expect(getEffectivePayMethod(false, true, PayMethod.PayLater, true)).toBe(PayMethod.PayLater)
+    expect(getEffectivePayMethod(false, true, PayMethod.PayNow, true)).toBe(PayMethod.PayNow)
+    expect(getEffectivePayMethod(false, false, PayMethod.PayNow, true)).toBe(PayMethod.PayNow)
+  })
+})
 
 describe('getNetworkLabel', () => {
   it('returns "Network" for a single network', () => {
@@ -158,5 +187,18 @@ describe('getWillRelay', () => {
 
   it('returns false when both canRelay is false and method is not RELAY', () => {
     expect(getWillRelay(false, ExecutionMethod.WALLET)).toBe(false)
+  })
+})
+
+describe('getNewSafeHomeUrl', () => {
+  const safeAddress = faker.finance.ethereumAddress()
+  const spaceId = faker.string.uuid()
+
+  it('links to the home of the Safe in the Workspace', () => {
+    expect(getNewSafeHomeUrl('sep', safeAddress, spaceId)).toBe(`/home?safe=sep%3A${safeAddress}&spaceId=${spaceId}`)
+  })
+
+  it('links to the home of the Safe outside a Workspace', () => {
+    expect(getNewSafeHomeUrl('sep', safeAddress, null)).toBe(`/home?safe=sep%3A${safeAddress}`)
   })
 })

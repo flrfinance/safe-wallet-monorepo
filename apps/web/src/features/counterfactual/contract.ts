@@ -13,7 +13,7 @@
  *   Import them directly from '@/features/counterfactual/store'
  */
 import type { Dispatch, SetStateAction } from 'react'
-import type { SignOrExecuteProps } from '@/components/tx/shared/types'
+import type { SignOrExecuteProps } from '@safe-global/views/components/tx/shared/types'
 import type { SafeTransaction } from '@safe-global/types-kit'
 import type { PayMethod } from './types'
 
@@ -41,10 +41,11 @@ import type {
 // Component prop types (for components with external props)
 export interface PayNowPayLaterProps {
   totalFee: string
-  canRelay: boolean
-  isMultiChain: boolean
+  willRelay: boolean
+  isMultiChain?: boolean
   payMethod: PayMethod
   setPayMethod: Dispatch<SetStateAction<PayMethod>>
+  isUserAuthenticated?: boolean
 }
 
 export interface CounterfactualFormProps extends SignOrExecuteProps {

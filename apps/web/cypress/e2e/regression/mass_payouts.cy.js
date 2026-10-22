@@ -6,14 +6,17 @@ import * as spendinglimit from '../pages/spending_limits.pages'
 import * as navigation from '../pages/navigation.page'
 import { getMockAddress } from '../../support/utils/ethers.js'
 import { selectToken } from '../pages/assets.pages.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let staticSafes = []
 
 const sendValue = 0.00998
 const sendValue2 = 0.0001
 
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
+let signer
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+})
 
 describe('Mass payouts tests', () => {
   before(async () => {
@@ -21,24 +24,21 @@ describe('Mass payouts tests', () => {
   })
 
   it('Verify that the "Add recipient" button is displayed for the targeted safes on New Tx form', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     createtx.verifyAddRecipientBtnIsVisible()
   })
 
   it('Verify that users can add up to 5 recipients', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     createtx.checkMaxRecipientReached()
   })
 
   it('Verify that "Remove recipient" deletes the recipient field', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     createtx.clickOnAddRecipientBtn()
@@ -48,8 +48,7 @@ describe('Mass payouts tests', () => {
   })
 
   it('Verify that "Remove recipient" deletes the recipient field', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_8)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_8)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     spendinglimit.selectSpendingLimitOption()
@@ -57,8 +56,7 @@ describe('Mass payouts tests', () => {
   })
 
   it('Verify the "Max" button sets the full amount', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     createtx.clickOnAddRecipientBtn()
@@ -68,8 +66,7 @@ describe('Mass payouts tests', () => {
   })
 
   it('Verify "insufficient amount" error for the same token during send to a few recipients', () => {
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     createtx.clickOnAddRecipientBtn()
@@ -85,8 +82,7 @@ describe('Mass payouts tests', () => {
     const address1 = getMockAddress()
     const address2 = getMockAddress()
 
-    cy.visit(constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer, constants.BALANCE_URL + staticSafes.SEP_STATIC_SAFE_6)
     createtx.clickOnNewtransactionBtn()
     createtx.clickOnSendTokensBtn()
     createtx.clickOnAddRecipientBtn()

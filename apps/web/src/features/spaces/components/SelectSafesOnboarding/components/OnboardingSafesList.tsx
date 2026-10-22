@@ -1,43 +1,73 @@
-import { type AllSafeItems, isMultiChainSafeItem } from '@/hooks/safes'
-import SafeCard from './SafeCard'
-import SimilarAddressAlert from './SimilarAddressAlert'
+import type { ReactNode } from 'react'
+import { type AllSafeItems } from '@/hooks/safes'
+import { SafeAccountsTable, type AccountLine, type SafeAccountColumnId } from '@/features/myAccounts'
+import type { SimilarWarning } from '@/features/address-poisoning'
+import SecurityBanner from '@/components/common/TrustedSafesModal/SecurityBanner'
+
+const COLUMNS: SafeAccountColumnId[] = ['name', 'threshold', 'networks', 'balance']
 
 interface SafeListProps {
   trustedSafes: AllSafeItems
   ownedSafes: AllSafeItems
-  similarAddresses: Set<string>
+  /** Any look-alike present → shows the top "Verify before you trust" banner. */
+  flaggedAddresses: Set<string>
+  /** Address → cluster id per section; each list bands its own members (cross-list singles = one card). */
+  trustedSimilarityGroups: Map<string, string>
+  ownedSimilarityGroups: Map<string, string>
+  /** Address → cross-list peers; drives the inline ⚠️ + tooltip (only clusters spanning both lists). */
+  similarWarnings: Map<string, SimilarWarning>
+  selectedKeys: Set<string>
+  onToggle: (line: AccountLine, nextChecked: boolean) => void
+  isAtLimit: boolean
 }
 
-const renderSafeCards = (safes: AllSafeItems, similarAddresses: Set<string>) =>
-  safes.map((safe, index) => {
-    const isSimilar = similarAddresses.has(safe.address.toLowerCase())
-    if (isMultiChainSafeItem(safe)) {
-      return <SafeCard key={`multi-${safe.address}-${index}`} safe={safe} isSimilar={isSimilar} />
-    }
-    return <SafeCard key={`${safe.chainId}:${safe.address}`} safe={safe} isSimilar={isSimilar} />
-  })
-
-const SectionHeader = ({ label }: { label: string }) => (
-  <p className="px-2 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+const SectionLabel = ({ children }: { children: ReactNode }) => (
+  <p className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</p>
 )
 
-const OnboardingSafesList = ({ trustedSafes, ownedSafes, similarAddresses }: SafeListProps) => {
+const OnboardingSafesList = ({
+  trustedSafes,
+  ownedSafes,
+  flaggedAddresses,
+  trustedSimilarityGroups,
+  ownedSimilarityGroups,
+  similarWarnings,
+  selectedKeys,
+  onToggle,
+  isAtLimit,
+}: SafeListProps) => {
+  const selection = { selectedKeys, onToggle, isAtLimit }
+
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--border)] [&::-webkit-scrollbar-thumb:hover]:bg-[color-mix(in_srgb,var(--muted-foreground)_55%,var(--border))]">
-      {similarAddresses.size > 0 && <SimilarAddressAlert />}
+    <div className="flex w-full min-w-0 flex-col gap-4">
+      {flaggedAddresses.size > 0 && <SecurityBanner title="Verify before you trust" />}
 
       {trustedSafes.length > 0 && (
-        <>
-          <SectionHeader label="Trusted safes" />
-          {renderSafeCards(trustedSafes, similarAddresses)}
-        </>
+        <div className="flex flex-col gap-2">
+          <SectionLabel>My accounts</SectionLabel>
+          <SafeAccountsTable
+            items={trustedSafes}
+            columns={COLUMNS}
+            similarWarnings={similarWarnings}
+            similarityGroups={trustedSimilarityGroups}
+            selection={selection}
+            data-testid="onboarding-trusted-table"
+          />
+        </div>
       )}
 
       {ownedSafes.length > 0 && (
-        <>
-          <SectionHeader label="Owned safes" />
-          {renderSafeCards(ownedSafes, similarAddresses)}
-        </>
+        <div className="flex flex-col gap-2">
+          <SectionLabel>Owned safe accounts</SectionLabel>
+          <SafeAccountsTable
+            items={ownedSafes}
+            columns={COLUMNS}
+            similarWarnings={similarWarnings}
+            similarityGroups={ownedSimilarityGroups}
+            selection={selection}
+            data-testid="onboarding-owned-table"
+          />
+        </div>
       )}
     </div>
   )

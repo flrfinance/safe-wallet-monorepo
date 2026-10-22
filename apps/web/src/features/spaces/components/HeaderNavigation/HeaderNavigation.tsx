@@ -1,13 +1,15 @@
 import type { MouseEvent, ReactNode } from 'react'
 import { useMemo } from 'react'
-import { Search, Bell, Wallet, Layers, ChevronUp, ChevronDown } from 'lucide-react'
+import { Search, Bell, Wallet, Layers } from 'lucide-react'
 import { blo } from 'blo'
 import { isAddress } from 'ethers'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/utils/cn'
+import { Button } from '@safe-global/views/components/ui/button'
+import IconAction from '@safe-global/views/components/common/IconAction'
+import { ICON_STROKE } from '@safe-global/views/components/common/iconStroke'
+import { cn } from '@safe-global/views/utils/cn'
 import Track from '@/components/common/Track'
 import { OVERVIEW_EVENTS, OVERVIEW_LABELS, BATCH_EVENTS } from '@/services/analytics'
-import BatchTooltip from '@/features/batching/components/BatchTooltip'
+import { BatchTooltip } from '@/features/batching'
 
 export interface HeaderNavigationProps {
   /**
@@ -30,10 +32,6 @@ export interface HeaderNavigationProps {
    * Wallet provider label (e.g. "MetaMask", "WalletConnect")
    */
   walletLabel?: string
-  /**
-   * Whether the wallet popover is open (controls chevron direction)
-   */
-  walletOpen?: boolean
   /**
    * Number of unread messages
    */
@@ -74,7 +72,6 @@ export function HeaderNavigation({
   isConnected = false,
   walletIcon,
   walletLabel,
-  walletOpen = false,
   messages = 0,
   showSearch = false,
   onSearchClick,
@@ -110,32 +107,17 @@ export function HeaderNavigation({
     <div className={cn('flex items-center gap-1')}>
       {/* TODO: Global search button */}
       {showSearch && (
-        <div className="flex self-stretch items-stretch rounded-lg bg-card shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onSearchClick}
-            className="cursor-pointer rounded-lg bg-transparent hover:bg-muted/30 transition-colors m-1"
-            aria-label="Search"
-          >
-            <Search className="size-5 text-muted-foreground" />
-          </Button>
+        <div className="flex items-center rounded-lg bg-muted">
+          <IconAction onClick={onSearchClick} aria-label="Search">
+            <Search className="size-5 text-muted-foreground" strokeWidth={ICON_STROKE} />
+          </IconAction>
         </div>
       )}
 
-      <div
-        className="relative flex self-stretch items-stretch rounded-lg bg-card shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
-        data-testid="notifications-center"
-      >
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onNotificationsClick}
-          className="cursor-pointer rounded-lg bg-transparent hover:bg-muted/30 transition-colors m-1"
-          aria-label="Notifications"
-        >
-          <Bell className="size-5 text-muted-foreground" />
-        </Button>
+      <div className="relative flex items-center rounded-lg bg-muted" data-testid="notifications-center">
+        <IconAction onClick={onNotificationsClick} aria-label="Notifications">
+          <Bell className="size-5 text-muted-foreground" strokeWidth={ICON_STROKE} />
+        </IconAction>
 
         {messages > 0 && (
           <span
@@ -152,19 +134,10 @@ export function HeaderNavigation({
       {showBatch && (
         <BatchTooltip>
           <Track {...BATCH_EVENTS.BATCH_SIDEBAR_OPEN} label={batchCount}>
-            <div
-              className="relative flex self-stretch items-stretch rounded-lg bg-card shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
-              data-track="batching: Batch sidebar open"
-            >
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onBatchClick}
-                className="cursor-pointer rounded-lg bg-transparent hover:bg-muted/30 transition-colors m-1"
-                aria-label="Batch transactions"
-              >
-                <Layers className="size-5 text-muted-foreground" />
-              </Button>
+            <div className="relative flex items-center rounded-lg bg-muted" data-track="batching: Batch sidebar open">
+              <IconAction onClick={onBatchClick} aria-label="Batch transactions">
+                <Layers className="size-5 text-muted-foreground" strokeWidth={ICON_STROKE} />
+              </IconAction>
 
               {batchCount > 0 && (
                 <span
@@ -180,12 +153,12 @@ export function HeaderNavigation({
       )}
 
       <Track label={OVERVIEW_LABELS.top_bar} {...OVERVIEW_EVENTS.OPEN_ONBOARD}>
-        <div className="flex self-stretch items-stretch rounded-lg bg-card shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <div className="flex items-center rounded-lg bg-muted">
           <Button
             variant="ghost"
-            size="sm"
+            size="chip"
             onClick={onWalletClick}
-            className="cursor-pointer gap-1.5 rounded-lg bg-transparent hover:bg-muted/30 transition-colors m-1"
+            className="m-1"
             aria-label={isConnected ? `Wallet ${walletDisplayName}` : 'Connect wallet'}
             data-testid={isConnected ? 'open-account-center' : 'connect-wallet-btn'}
           >
@@ -201,17 +174,11 @@ export function HeaderNavigation({
                 )}
               </div>
             ) : (
-              <Wallet className="size-5 text-muted-foreground" />
+              <Wallet className="size-5 text-muted-foreground" strokeWidth={ICON_STROKE} />
             )}
             <span className="text-xs text-muted-foreground font-normal">
               {isConnected ? walletDisplayName : 'Connect Wallet'}
             </span>
-            {isConnected &&
-              (walletOpen ? (
-                <ChevronUp className="size-3.5 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="size-3.5 text-muted-foreground" />
-              ))}
           </Button>
         </div>
       </Track>

@@ -7,12 +7,15 @@ import * as wallet from '../../support/utils/wallet.js'
 import * as modules from '../pages/modules.page.js'
 import * as navigation from '../pages/navigation.page.js'
 import { getMockAddress } from '../../support/utils/ethers.js'
+import { walletCredentials } from '../../support/credentials.js'
 
 let recoverySafes,
   staticSafes = []
-const walletCredentials = JSON.parse(Cypress.env('CYPRESS_WALLET_CREDENTIALS'))
-const signer = walletCredentials.OWNER_4_PRIVATE_KEY
-const guardian = walletCredentials.OWNER_2_PRIVATE_KEY
+let signer, guardian
+before(() => {
+  signer = walletCredentials.OWNER_4_PRIVATE_KEY
+  guardian = walletCredentials.OWNER_2_PRIVATE_KEY
+})
 
 describe('Recovery regression tests 2', { defaultCommandTimeout: 50000 }, () => {
   before(() => {
@@ -29,7 +32,7 @@ describe('Recovery regression tests 2', { defaultCommandTimeout: 50000 }, () => 
   it('Verify "Edit Recovery" flow start from the Recovery widget', () => {
     cy.visit(constants.securityUrl + recoverySafes.SEP_RECOVERY_SAFE_4)
     cy.clearLocalStorage()
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer)
     main.acceptCookies()
     recovery.verifyRecoveryTableDisplayed()
     recovery.clickOnEditRecoverer()
@@ -39,7 +42,7 @@ describe('Recovery regression tests 2', { defaultCommandTimeout: 50000 }, () => 
   it('Verify that Recovery widget has "Edit recovery" button when the recovery module is enabled', () => {
     cy.visit(constants.securityUrl + recoverySafes.SEP_RECOVERY_SAFE_4)
     cy.clearLocalStorage()
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer)
     main.acceptCookies()
     recovery.verifyRecoveryTableDisplayed()
     main.verifyElementsCount(recovery.editRecovererBtn, 1)
@@ -48,7 +51,7 @@ describe('Recovery regression tests 2', { defaultCommandTimeout: 50000 }, () => 
   it('Verify that the "Set up recovery" button starts the set up recovery flow when no enabled recovery module in the safe', () => {
     cy.visit(constants.securityUrl + staticSafes.SEP_STATIC_SAFE_13)
     cy.clearLocalStorage()
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer)
     main.acceptCookies()
     recovery.clickOnSetupRecoveryBtn()
     recovery.verifyRecoveryModalDisplayed()
@@ -57,7 +60,7 @@ describe('Recovery regression tests 2', { defaultCommandTimeout: 50000 }, () => 
   it('Verify that there is validation for the Guardian address field', () => {
     cy.visit(constants.securityUrl + staticSafes.SEP_STATIC_SAFE_13)
     cy.clearLocalStorage()
-    wallet.connectSigner(signer)
+    wallet.connectSignerViaStorage(signer)
     main.acceptCookies()
     recovery.clickOnSetupRecoveryBtn()
     recovery.clickOnNextBtn()

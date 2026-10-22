@@ -1,5 +1,8 @@
 import { sectionItems, type SectionItem } from './sectionItems'
-import { SectionVisibilityProvider, useSectionVisibility } from './SectionVisibilityContext'
+import {
+  SectionVisibilityProvider,
+  useSectionVisibility,
+} from '@safe-global/views/features/global-search/components/SearchSection/SectionVisibilityContext'
 
 interface SearchSectionProps {
   query: string
@@ -16,7 +19,7 @@ const SectionEntry = ({ item, query }: { item: SectionItem; query: string }) => 
 
   if (!isActive) return null
 
-  return <>{item.renderItem({ query, label: item.label })}</>
+  return <item.Component query={query} label={item.label} />
 }
 
 const SearchSectionContent = ({ query }: SearchSectionProps) => {

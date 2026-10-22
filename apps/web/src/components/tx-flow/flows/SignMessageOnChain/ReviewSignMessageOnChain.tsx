@@ -2,14 +2,13 @@ import type { ReactElement } from 'react'
 import { useContext, useEffect, useState } from 'react'
 import { useMemo } from 'react'
 import { hashMessage, TypedDataEncoder } from 'ethers'
-import { Box } from '@mui/system'
-import { Typography, SvgIcon } from '@mui/material'
-import WarningIcon from '@/public/images/notifications/warning.svg'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import WarningIcon from '@safe-global/views/assets/images/notifications/warning.svg'
 import { type EIP712TypedData, Methods, type RequestId } from '@safe-global/safe-apps-sdk'
 import { OperationType } from '@safe-global/types-kit'
 
 import SendFromBlock from '@/components/tx/SendFromBlock'
-import { InfoDetails } from '@/components/transactions/InfoDetails'
+import { InfoDetails } from '@safe-global/views/components/transactions/InfoDetails'
 import EthHashInfo from '@/components/common/EthHashInfo'
 import { getReadOnlySignMessageLibContract } from '@/services/contracts/safeContracts'
 import { DecodedMsg } from '@/components/safe-messages/DecodedMsg'
@@ -119,26 +118,26 @@ const ReviewSignMessageOnChain = ({ message, method, children, ...props }: SignM
       )}
 
       {safeTx && (
-        <Box pb={1}>
+        <div className="pb-2">
           <HexEncodedData title="Data:" hexData={safeTx.data.data} />
-        </Box>
+        </div>
       )}
 
-      <Typography my={1}>
+      <Typography className="my-2">
         <b>Signing method:</b> <code>{method}</code>
       </Typography>
 
-      <Typography my={2}>
+      <Typography className="my-4">
         <b>Signing message:</b> {readableMessage && <CopyButton text={readableMessage} />}
       </Typography>
       <DecodedMsg message={decodedMessage} isInModal />
 
-      <Box display="flex" alignItems="center" my={2}>
-        <SvgIcon component={WarningIcon} inheritViewBox color="warning" />
-        <Typography ml={1}>
-          Signing a message with your Safe Account requires a transaction on the blockchain
+      <div className="my-4 flex items-center">
+        <WarningIcon className="size-4 text-[var(--color-warning-main)]" />
+        <Typography className="ml-2">
+          Signing a message with your Safe account requires a transaction on the blockchain
         </Typography>
-      </Box>
+      </div>
 
       {children}
     </ReviewTransaction>

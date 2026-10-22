@@ -8,11 +8,16 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
-} from '@/components/ui/sidebar'
+} from '@safe-global/views/components/ui/sidebar'
 import { SidebarTopBar } from '../SidebarTopBar'
 import css from '../styles.module.css'
 
-const Pulse = ({ className }: { className: string }): ReactElement => (
+const SIDEBAR_CONTAINER_CLASSNAME = '!p-0 border-r-0 group-data-[side=left]:border-r-0'
+// Keep the edge treatment identical to EnhancedSidebar so the skeleton doesn't pop a border on load.
+const SIDEBAR_INNER_CLASSNAME =
+  'rounded-[0_8px_8px_0] group-data-[variant=floating]:rounded-[0_8px_8px_0] shadow-none group-data-[variant=floating]:ring-0'
+
+export const Pulse = ({ className }: { className: string }): ReactElement => (
   <div className={`bg-sidebar-border animate-pulse ${className}`} />
 )
 
@@ -28,12 +33,14 @@ const NavRow = (): ReactElement => (
   </SidebarMenuItem>
 )
 
-export const SidebarSkeleton = (): ReactElement => {
+export const SidebarSkeleton = ({ contained = false }: { contained?: boolean }): ReactElement => {
   return (
     <Sidebar
       collapsible="icon"
       variant="floating"
-      className="!p-0 border-r-0 group-data-[side=left]:border-r-0 [&_[data-slot=sidebar-inner]]:rounded-none [&_[data-slot=sidebar-inner]]:rounded-tr-[8px] [&_[data-slot=sidebar-inner]]:rounded-br-[8px] [&_[data-slot=sidebar-inner]]:shadow-none"
+      contained={contained}
+      containerClassName={SIDEBAR_CONTAINER_CLASSNAME}
+      innerClassName={SIDEBAR_INNER_CLASSNAME}
       data-testid="sidebar-skeleton"
     >
       <SidebarHeader>

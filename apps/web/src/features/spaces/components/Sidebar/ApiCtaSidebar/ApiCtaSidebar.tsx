@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react'
 import Image from 'next/image'
 import { X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Typography } from '@/components/ui/typography'
-import { SidebarMenuItem, SidebarMenuButton, useSidebar } from '@/components/ui/sidebar'
-import { cn } from '@/utils/cn'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Badge } from '@safe-global/views/components/ui/badge'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { SidebarMenuItem, SidebarMenuButton, useSidebar } from '@safe-global/views/components/ui/sidebar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@safe-global/views/components/ui/tooltip'
+import { cn } from '@safe-global/views/utils/cn'
 import useLocalStorage from '@/services/local-storage/useLocalStorage'
 import css from '../styles.module.css'
 
@@ -28,20 +29,25 @@ export const ApiCtaSidebar = (): ReactElement => {
           aria-label="API"
           render={isIconCollapsed ? <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" /> : undefined}
         >
-          <Image
-            src="/images/spaces/api-sidebar.svg"
-            alt="API"
-            width={16}
-            height={16}
-            className="dark:brightness-0 dark:invert"
-          />
-          <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">API</span>
+          <Tooltip>
+            <TooltipTrigger render={<div />} className="flex min-w-0 cursor-pointer items-center gap-3">
+              <Image
+                src="/images/spaces/api-sidebar.svg"
+                alt="API"
+                width={16}
+                height={16}
+                className="dark:brightness-0 dark:invert"
+              />
+              <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">API</span>
+            </TooltipTrigger>
+            <TooltipContent side="right">API</TooltipContent>
+          </Tooltip>
         </SidebarMenuButton>
         <div
           className={cn(css.footerHelpStatus, !isIconCollapsed && 'cursor-pointer')}
           onClick={!isIconCollapsed ? () => setIsCollapsed(false) : undefined}
         >
-          <Badge className="px-1 py-0 text-[10px] leading-none tabular-nums group-data-[collapsible=icon]:hidden">
+          <Badge size="sm" className="tabular-nums group-data-[collapsible=icon]:hidden">
             New
           </Badge>
         </div>
@@ -80,7 +86,7 @@ export const ApiCtaSidebar = (): ReactElement => {
         <Button
           variant="outline"
           size="sm"
-          className="w-auto self-start !bg-background hover:!bg-muted"
+          className="w-auto self-start"
           render={<a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" />}
         >
           Get API key

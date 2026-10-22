@@ -9,6 +9,10 @@ import type { MessageItem, DateLabel } from '@safe-global/store/gateway/AUTO_GEN
 import * as totpModule from '@/features/proposers/utils/totp'
 import { faker } from '@faker-js/faker'
 import { checksumAddress } from '@safe-global/utils/utils/addresses'
+import { chainBuilder } from '@/tests/builders/chains'
+import { FEATURES } from '@safe-global/utils/utils/chains'
+import { getDelegateTypedData, normalizeDelegateTypedData } from '@safe-global/utils/services/delegates'
+import type { DelegateAction } from '@safe-global/utils/services/delegates'
 
 describe('usePendingDelegations', () => {
   const chainId = '1'
@@ -19,9 +23,10 @@ describe('usePendingDelegations', () => {
 
   const createMessageItem = (
     overrides: Partial<{
-      action: 'add' | 'remove' | 'edit'
+      action: 'add' | 'remove'
       delegate: string
       nestedSafe: string
+      /** Only for simulating messages created before names became device-local. */
       label: string
       totp: number
       confirmationsSubmitted: number
@@ -33,7 +38,7 @@ describe('usePendingDelegations', () => {
     const action = overrides.action ?? 'add'
     const delegate = overrides.delegate ?? delegateAddress
     const nestedSafe = overrides.nestedSafe ?? safeAddress
-    const label = overrides.label ?? 'Test Proposer'
+    const label = overrides.label
     const totp = overrides.totp ?? currentTotp
 
     return {
@@ -67,8 +72,27 @@ describe('usePendingDelegations', () => {
         nestedSafe,
         label,
       }),
+      safeAppInfo: null,
+      safeAppId: null,
     }
   }
+
+  const createQueueServiceMessageItem = (
+    overrides: Partial<{ action: DelegateAction; nestedSafe: string }> = {},
+  ): MessageItem => ({
+    ...createMessageItem(),
+    message: normalizeDelegateTypedData(
+      getDelegateTypedData(
+        chainBuilder()
+          .with({ chainId, features: [FEATURES.QUEUE_SERVICE] })
+          .build(),
+        delegateAddress,
+        overrides.nestedSafe ?? safeAddress,
+        overrides.action ?? 'add',
+      ),
+    ),
+    origin: null,
+  })
 
   const createDateLabel = (): DateLabel => ({
     type: 'DATE_LABEL',
@@ -193,9 +217,57 @@ describe('usePendingDelegations', () => {
     expect(result.current.pendingDelegations).toHaveLength(1)
     expect(result.current.pendingDelegations[0].action).toBe('remove')
     expect(result.current.pendingDelegations[0].delegateAddress).toBe(delegate)
-    expect(result.current.pendingDelegations[0].delegateLabel).toBe('Test Proposer')
     expect(result.current.pendingDelegations[0].nestedSafeAddress).toBe(safeAddress)
     expect(result.current.pendingDelegations[0].parentSafeAddress).toBe(parentSafeAddress)
+  })
+
+  it.each([
+    ['add', 'add'],
+    ['delete', 'remove'],
+  ] as const)(
+    'should read a queue service delegation from its typed data when the origin is dropped (%s)',
+    (delegateAction, expectedAction) => {
+      jest.spyOn(useNestedSafeOwnersModule, 'useNestedSafeOwners').mockReturnValue([parentSafeAddress])
+      jest.spyOn(useProposersModule, 'default').mockReturnValue({
+        data: { results: expectedAction === 'remove' ? [{ delegate: delegateAddress }] : [] },
+        isLoading: false,
+        refetch: jest.fn(),
+      } as unknown as ReturnType<typeof useProposersModule.default>)
+      const message = createQueueServiceMessageItem({ action: delegateAction })
+
+      jest.spyOn(messagesQueries, 'useMessagesGetMessagesBySafeV1Query').mockReturnValue({
+        data: { results: [message] },
+        isLoading: false,
+        refetch: mockRefetch,
+      } as ReturnType<typeof messagesQueries.useMessagesGetMessagesBySafeV1Query>)
+
+      const { result } = renderHook(() => usePendingDelegations())
+
+      expect(result.current.pendingDelegations).toEqual([
+        expect.objectContaining({
+          messageHash: message.messageHash,
+          action: expectedAction,
+          delegateAddress,
+          nestedSafeAddress: safeAddress,
+          parentSafeAddress,
+        }),
+      ])
+    },
+  )
+
+  it('should filter out a queue service delegation for a different nested safe', () => {
+    jest.spyOn(useNestedSafeOwnersModule, 'useNestedSafeOwners').mockReturnValue([parentSafeAddress])
+    const message = createQueueServiceMessageItem({ nestedSafe: checksumAddress(faker.finance.ethereumAddress()) })
+
+    jest.spyOn(messagesQueries, 'useMessagesGetMessagesBySafeV1Query').mockReturnValue({
+      data: { results: [message] },
+      isLoading: false,
+      refetch: mockRefetch,
+    } as ReturnType<typeof messagesQueries.useMessagesGetMessagesBySafeV1Query>)
+
+    const { result } = renderHook(() => usePendingDelegations())
+
+    expect(result.current.pendingDelegations).toEqual([])
   })
 
   it('should derive pending status when confirmations < required', () => {
@@ -401,31 +473,8 @@ describe('usePendingDelegations', () => {
     expect(result.current.pendingDelegations[0].messageHash).toBe(validMessage.messageHash)
   })
 
-  it('should keep edit delegation when delegate exists and label is different', () => {
-    const existingDelegate = checksumAddress(faker.finance.ethereumAddress())
-    jest.spyOn(useNestedSafeOwnersModule, 'useNestedSafeOwners').mockReturnValue([parentSafeAddress])
-    jest.spyOn(useProposersModule, 'default').mockReturnValue({
-      data: { results: [{ delegate: existingDelegate, label: 'Old Label' }] },
-      isLoading: false,
-      refetch: jest.fn(),
-    } as unknown as ReturnType<typeof useProposersModule.default>)
-
-    const editMessage = createMessageItem({ delegate: existingDelegate, action: 'edit', label: 'New Label' })
-
-    jest.spyOn(messagesQueries, 'useMessagesGetMessagesBySafeV1Query').mockReturnValue({
-      data: { results: [editMessage] },
-      isLoading: false,
-      refetch: mockRefetch,
-    } as ReturnType<typeof messagesQueries.useMessagesGetMessagesBySafeV1Query>)
-
-    const { result } = renderHook(() => usePendingDelegations())
-
-    expect(result.current.pendingDelegations).toHaveLength(1)
-    expect(result.current.pendingDelegations[0].action).toBe('edit')
-  })
-
-  it('should filter out edit delegation when delegate does not exist', () => {
-    const nonExistentDelegate = checksumAddress(faker.finance.ethereumAddress())
+  it('should still parse an in-flight origin created before names became device-local', () => {
+    const newDelegate = checksumAddress(faker.finance.ethereumAddress())
     jest.spyOn(useNestedSafeOwnersModule, 'useNestedSafeOwners').mockReturnValue([parentSafeAddress])
     jest.spyOn(useProposersModule, 'default').mockReturnValue({
       data: { results: [] },
@@ -433,39 +482,18 @@ describe('usePendingDelegations', () => {
       refetch: jest.fn(),
     } as unknown as ReturnType<typeof useProposersModule.default>)
 
-    const editMessage = createMessageItem({ delegate: nonExistentDelegate, action: 'edit', label: 'New Label' })
+    const legacyMessage = createMessageItem({ delegate: newDelegate, action: 'add', label: 'Old Label' })
 
     jest.spyOn(messagesQueries, 'useMessagesGetMessagesBySafeV1Query').mockReturnValue({
-      data: { results: [editMessage] },
+      data: { results: [legacyMessage] },
       isLoading: false,
       refetch: mockRefetch,
     } as ReturnType<typeof messagesQueries.useMessagesGetMessagesBySafeV1Query>)
 
     const { result } = renderHook(() => usePendingDelegations())
 
-    expect(result.current.pendingDelegations).toHaveLength(0)
-  })
-
-  it('should filter out edit delegation when label already matches (edit was applied)', () => {
-    const existingDelegate = checksumAddress(faker.finance.ethereumAddress())
-    jest.spyOn(useNestedSafeOwnersModule, 'useNestedSafeOwners').mockReturnValue([parentSafeAddress])
-    jest.spyOn(useProposersModule, 'default').mockReturnValue({
-      data: { results: [{ delegate: existingDelegate, label: 'Updated Label' }] },
-      isLoading: false,
-      refetch: jest.fn(),
-    } as unknown as ReturnType<typeof useProposersModule.default>)
-
-    // Pending edit with same label as current - means edit was already applied
-    const editMessage = createMessageItem({ delegate: existingDelegate, action: 'edit', label: 'Updated Label' })
-
-    jest.spyOn(messagesQueries, 'useMessagesGetMessagesBySafeV1Query').mockReturnValue({
-      data: { results: [editMessage] },
-      isLoading: false,
-      refetch: mockRefetch,
-    } as ReturnType<typeof messagesQueries.useMessagesGetMessagesBySafeV1Query>)
-
-    const { result } = renderHook(() => usePendingDelegations())
-
-    expect(result.current.pendingDelegations).toHaveLength(0)
+    expect(result.current.pendingDelegations).toHaveLength(1)
+    expect(result.current.pendingDelegations[0].action).toBe('add')
+    expect(result.current.pendingDelegations[0].delegateAddress).toBe(newDelegate)
   })
 })

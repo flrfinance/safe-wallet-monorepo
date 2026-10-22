@@ -1,18 +1,20 @@
 import WalletRejectionError from '@/components/tx/shared/errors/WalletRejectionError'
 import { isWalletRejection } from '@/utils/wallets'
 import { type ReactElement, type SyntheticEvent, useContext, useState } from 'react'
-import { Box, Button, CircularProgress, Divider, Typography } from '@mui/material'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Spinner } from '@safe-global/views/components/ui/spinner'
+import { Separator } from '@safe-global/views/components/ui/separator'
+import { Typography } from '@safe-global/views/components/ui/typography'
 import type { SafeTransaction } from '@safe-global/types-kit'
 import CheckWallet from '@/components/common/CheckWallet'
 import { TxModalContext } from '@/components/tx-flow'
-import commonCss from '@/components/tx-flow/common/styles.module.css'
 import { useTxActions } from '@/components/tx/shared/hooks'
-import type { SignOrExecuteProps } from '@/components/tx/shared/types'
+import type { SignOrExecuteProps } from '@safe-global/views/components/tx/shared/types'
 import useWallet from '@/hooks/wallets/useWallet'
 import { Errors, trackError } from '@/services/exceptions'
 import { asError } from '@safe-global/utils/services/exceptions/utils'
 import madProps from '@/utils/mad-props'
-import { TxCardActions } from '@/components/tx-flow/common/TxCard'
+import { TxCardActions } from '@safe-global/views/components/tx-flow/common/TxCard'
 import { useSafeShield } from '@/features/safe-shield/SafeShieldContext'
 
 export const ProposerForm = ({
@@ -73,12 +75,14 @@ export const ProposerForm = ({
       </Typography>
 
       {isRejectedByUser && (
-        <Box mt={1}>
+        <div className="mt-2">
           <WalletRejectionError />
-        </Box>
+        </div>
       )}
 
-      <Divider className={commonCss.nestedDivider} sx={{ pt: 3 }} />
+      <div className="pt-6">
+        <Separator bleed="6" />
+      </div>
 
       <TxCardActions>
         {/* Submit button */}
@@ -86,12 +90,12 @@ export const ProposerForm = ({
           {(isOk) => (
             <Button
               data-testid="sign-btn"
-              variant="contained"
               type="submit"
+              size="submit"
               disabled={!isOk || submitDisabled}
-              sx={{ minWidth: '82px', order: '1', width: ['100%', '100%', '100%', 'auto'] }}
+              className="order-1"
             >
-              {!isSubmittable ? <CircularProgress size={20} /> : 'Propose transaction'}
+              {!isSubmittable ? <Spinner className="size-5" /> : 'Propose transaction'}
             </Button>
           )}
         </CheckWallet>

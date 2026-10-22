@@ -1,27 +1,33 @@
 import useWallet from '@/hooks/wallets/useWallet'
-import { CircularProgress, Typography, Button, CardActions, Divider, Alert } from '@mui/material'
+import { Spinner } from '@safe-global/views/components/ui/spinner'
+import { Typography } from '@safe-global/views/components/ui/typography'
+import { Button } from '@safe-global/views/components/ui/button'
+import { Separator } from '@safe-global/views/components/ui/separator'
+import { Alert } from '@safe-global/views/components/ui/alert'
 import useAsync from '@safe-global/utils/hooks/useAsync'
 import { useCurrentChain } from '@/hooks/useChains'
 import useSafeInfo from '@/hooks/useSafeInfo'
 import { encodeMultiSendData } from '@safe-global/protocol-kit'
 import { useState, useMemo, useContext, useCallback } from 'react'
 import type { SyntheticEvent } from 'react'
-import ErrorMessage from '@/components/tx/ErrorMessage'
+import TxCheckError from '@/components/tx/TxCheckError'
+import TxSubmitError from '@/components/tx/TxSubmitError'
 import { ExecutionMethod, ExecutionMethodSelector } from '@/components/tx/ExecutionMethodSelector'
 import DecodedTxs from '@/components/tx-flow/flows/ExecuteBatch/DecodedTxs'
-import { useRelaysBySafe } from '@/hooks/useRemainingRelays'
+import { useGasPaymentOptions } from '@/hooks/useGasPaymentOptions'
+import { getGasPayment } from '@/utils/gasPayment'
+import { getGasPaymentRefusal } from '@/components/tx/gasPaymentRefusal'
 import useOnboard from '@/hooks/wallets/useOnboard'
 import { logError, Errors } from '@/services/exceptions'
 import { createMultiSendCallOnlyTx, dispatchBatchExecution, dispatchBatchExecutionRelay } from '@/services/tx/tx-sender'
-import { hasRemainingRelays } from '@/utils/relaying'
 import { getMultiSendTxs } from '@/utils/transactions'
-import TxCard from '../../common/TxCard'
+import TxCard, { TxCardActions } from '@safe-global/views/components/tx-flow/common/TxCard'
 import CheckWallet from '@/components/common/CheckWallet'
 import type { ExecuteBatchFlowProps } from '.'
 import { asError } from '@safe-global/utils/services/exceptions/utils'
+import ErrorMessage from '@/components/tx/ErrorMessage'
 import SendToBlock from '@/components/tx/SendToBlock'
-import ConfirmationTitle, { ConfirmationTitleTypes } from '@/components/tx/shared/ConfirmationTitle'
-import commonCss from '@/components/tx-flow/common/styles.module.css'
+import ConfirmationTitle, { ConfirmationTitleTypes } from '@safe-global/views/components/tx/shared/ConfirmationTitle'
 import { TxModalContext } from '@/components/tx-flow'
 import useGasPrice from '@/hooks/useGasPrice'
 import type { Overrides } from 'ethers'
@@ -58,23 +64,18 @@ const buildGasOverrides = (
 const BatchErrorMessages = ({
   estimationError,
   submitError,
+  refusalMessage,
   isRejectedByUser,
 }: {
   estimationError: unknown
   submitError: Error | undefined
+  refusalMessage?: string
   isRejectedByUser: Boolean
 }) => (
   <>
-    {estimationError && (
-      <ErrorMessage error={asError(estimationError)} context="estimation">
-        This transaction will most likely fail. To save gas costs, avoid creating the transaction.
-      </ErrorMessage>
-    )}
-    {submitError && (
-      <ErrorMessage error={submitError} context="execution">
-        Error submitting the transaction. Please try again.
-      </ErrorMessage>
-    )}
+    {estimationError && <TxCheckError error={asError(estimationError)} context="estimation" />}
+    {submitError && <TxSubmitError error={submitError} context="execution" />}
+    {refusalMessage && <ErrorMessage level="warning">{refusalMessage}</ErrorMessage>}
     {isRejectedByUser && <WalletRejectionError />}
   </>
 )
@@ -82,11 +83,12 @@ const BatchErrorMessages = ({
 export const ReviewBatch = ({ params }: { params: ExecuteBatchFlowProps }) => {
   const [isSubmittable, setIsSubmittable] = useState<boolean>(true)
   const [submitError, setSubmitError] = useState<Error | undefined>()
+  const [refusalMessage, setRefusalMessage] = useState<string>()
   const [isRejectedByUser, setIsRejectedByUser] = useState<Boolean>(false)
   const [executionMethod, setExecutionMethod] = useState(ExecutionMethod.RELAY)
   const chain = useCurrentChain()
   const { safe } = useSafeInfo()
-  const [relays] = useRelaysBySafe()
+  const { offer, showsProUpsell, exclude } = useGasPaymentOptions({ isBatch: true })
   const { setTxFlow } = useContext(TxModalContext)
   const [gasPrice] = useGasPrice()
   const userNonce = useUserNonce()
@@ -94,9 +96,8 @@ export const ReviewBatch = ({ params }: { params: ExecuteBatchFlowProps }) => {
   const onboard = useOnboard()
   const wallet = useWallet()
 
-  // Chain has relaying feature and available relays
-  const canRelay = hasRemainingRelays(relays)
-  const willRelay = canRelay && executionMethod === ExecutionMethod.RELAY
+  const { gasPayer, sponsorSpaceId } = getGasPayment(offer, executionMethod)
+  const willRelay = gasPayer !== 'WALLET'
 
   // EIP-1559 gas pricing support
   const isEIP1559 = Boolean(chain && hasFeature(chain, FEATURES.EIP1559))
@@ -174,6 +175,7 @@ export const ReviewBatch = ({ params }: { params: ExecuteBatchFlowProps }) => {
       safe.chainId,
       safe.address.value,
       safe.version ?? latestSafeVersion,
+      sponsorSpaceId,
     )
   }
 
@@ -181,6 +183,7 @@ export const ReviewBatch = ({ params }: { params: ExecuteBatchFlowProps }) => {
     e.preventDefault()
     setIsSubmittable(false)
     setSubmitError(undefined)
+    setRefusalMessage(undefined)
     setIsRejectedByUser(false)
 
     try {
@@ -188,8 +191,12 @@ export const ReviewBatch = ({ params }: { params: ExecuteBatchFlowProps }) => {
       setTxFlow(undefined)
     } catch (_err) {
       const err = asError(_err)
+      const refusal = getGasPaymentRefusal(err, gasPayer)
       if (isWalletRejection(err)) {
         setIsRejectedByUser(true)
+      } else if (refusal) {
+        exclude(refusal.excluded)
+        setRefusalMessage(refusal.message)
       } else {
         logError(Errors._804, err)
         setSubmitError(err)
@@ -204,6 +211,7 @@ export const ReviewBatch = ({ params }: { params: ExecuteBatchFlowProps }) => {
       {
         [MixpanelEventParams.TRANSACTION_TYPE]: TX_TYPES.bulk_execute,
         [MixpanelEventParams.THRESHOLD]: safe.threshold,
+        [MixpanelEventParams.GAS_PAYMENT_OPTION]: gasPayer,
       },
     )
   }
@@ -213,7 +221,7 @@ export const ReviewBatch = ({ params }: { params: ExecuteBatchFlowProps }) => {
   return (
     <>
       <TxCard>
-        <Typography variant="body2">
+        <Typography variant="paragraph-small" className="block">
           This transaction batches a total of {params.txs.length} transactions from your queue into a single Ethereum
           transaction. Please check every included transaction carefully, especially if you have rejection transactions,
           and make sure you want to execute all of them. Included transactions are highlighted when you hover over the
@@ -228,48 +236,48 @@ export const ReviewBatch = ({ params }: { params: ExecuteBatchFlowProps }) => {
           <DecodedTxs txs={txsWithDetails} />
         </div>
 
-        <Divider sx={{ mt: 2, mx: -3 }} />
+        <Separator bleed="6" className="mt-4" />
 
         <ConfirmationTitle variant={ConfirmationTitleTypes.execute} />
 
         <NetworkWarning />
 
-        {canRelay ? (
-          <>
-            <ExecutionMethodSelector
-              executionMethod={executionMethod}
-              setExecutionMethod={setExecutionMethod}
-              relays={relays}
-              tooltip="You can only relay multisend transactions containing executions from the same Safe Account."
-            />
-          </>
-        ) : null}
+        {(offer !== null || showsProUpsell) && (
+          <ExecutionMethodSelector
+            executionMethod={executionMethod}
+            setExecutionMethod={setExecutionMethod}
+            offer={offer}
+            showsProUpsell={showsProUpsell}
+            tooltip="You can only relay multisend transactions containing executions from the same Safe account."
+          />
+        )}
 
-        <Alert severity="warning">
+        <Alert variant="warning" outlined={false}>
           Be aware that if any of the included transactions revert, none of them will be executed. This will result in
           the loss of the allocated transaction fees.
         </Alert>
 
-        <BatchErrorMessages estimationError={error} submitError={submitError} isRejectedByUser={isRejectedByUser} />
+        <BatchErrorMessages
+          refusalMessage={refusalMessage}
+          estimationError={error}
+          submitError={submitError}
+          isRejectedByUser={isRejectedByUser}
+        />
 
         <div>
-          <Divider className={commonCss.nestedDivider} sx={{ pt: 2 }} />
+          <div className="pt-4">
+            <Separator bleed="6" />
+          </div>
 
-          <CardActions>
+          <TxCardActions>
             <CheckWallet allowNonOwner={true} checkNetwork>
               {(isOk) => (
-                <Button
-                  variant="contained"
-                  type="submit"
-                  disabled={!isOk || submitDisabled}
-                  onClick={handleSubmit}
-                  sx={{ minWidth: '114px' }}
-                >
-                  {!isSubmittable ? <CircularProgress size={20} /> : 'Submit'}
+                <Button type="submit" size="submit" disabled={!isOk || submitDisabled} onClick={handleSubmit}>
+                  {!isSubmittable ? <Spinner className="size-5" /> : 'Submit'}
                 </Button>
               )}
             </CheckWallet>
-          </CardActions>
+          </TxCardActions>
         </div>
       </TxCard>
     </>

@@ -9,25 +9,28 @@ import {
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuItem,
-  SidebarMenuButton,
-} from '@/components/ui/sidebar'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+  SidebarSeparator,
+} from '@safe-global/views/components/ui/sidebar'
 import css from '../../styles.module.css'
-import type { SafeSidebarVariantProps } from '../../types'
+import type {
+  ResolvedSidebarNavItem,
+  SafeSidebarVariantProps,
+} from '@safe-global/views/features/spaces/components/Sidebar/types'
 import { AppRoutes } from '@/config/routes'
 import { NavItem } from '../NavItem'
+import { SidebarDeveloperGroup } from '../SidebarDeveloperGroup'
 import { SidebarActionButton } from '../../NewTransactionButton'
 import { SafeSidebarWorkspaceHeader } from '../SafeSidebarWorkspaceHeader'
-import Link from 'next/link'
 import useSafeInfo from '@/hooks/useSafeInfo'
 import { ImplementationVersionState } from '@safe-global/store/gateway/types'
 import { isNonCriticalUpdate } from '@safe-global/utils/utils/chains'
 import { useIsCounterfactualSafe } from '@/features/counterfactual'
-import { useSidebarHydrated } from '../../hooks/useSidebarHydrated'
+import { useIsHydrated } from '@/hooks/useIsHydrated'
 import { useSafeQueryParam } from '@/hooks/useSafeAddressFromUrl'
-import { containerVariants, itemVariants } from '../../constants'
+import { containerVariants, itemVariants } from '@safe-global/views/features/spaces/components/Sidebar/constants'
 import { useAppSelector } from '@/store'
 import { isAuthenticated } from '@/store/authSlice'
+import { useUrlSpaceId, withSpaceId } from '@/hooks/useUrlSpaceId'
 
 const MAIN_NAV_SKELETON_COUNT = 5
 const DEFI_GROUP_SKELETON_COUNT = 4
@@ -41,9 +44,10 @@ export const SafeSidebarVariant = ({
   const router = useRouter()
   const { safe } = useSafeInfo()
   const isCounterfactualSafe = useIsCounterfactualSafe()
-  const isHydrated = useSidebarHydrated()
+  const isHydrated = useIsHydrated()
   const isUserSignedIn = useAppSelector(isAuthenticated)
   const safeFromQuery = useSafeQueryParam()
+  const spaceId = useUrlSpaceId()
   const safeAddress = isHydrated ? safeFromQuery || undefined : undefined
   const isOutdated =
     isHydrated &&
@@ -51,9 +55,22 @@ export const SafeSidebarVariant = ({
     !isNonCriticalUpdate(safe.version)
   const settingsHref = {
     pathname: AppRoutes.settings.setup,
-    query: safeAddress ? { safe: safeAddress } : {},
+    query: withSpaceId(safeAddress ? { safe: safeAddress } : {}, spaceId),
   }
   const isSettingsActive = router.pathname.startsWith(AppRoutes.settings.index)
+
+  // Settings lives in the main nav group but isn't config-driven: its outdated indicator and
+  // active state depend on the current Safe. Render it through NavItem so styling stays in sync.
+  const settingsItem: ResolvedSidebarNavItem = {
+    icon: Settings,
+    label: 'Settings',
+    href: AppRoutes.settings.setup,
+    link: settingsHref,
+    isActive: isSettingsActive,
+    disabled: false,
+    indicator: isOutdated,
+    testId: 'sidebar-settings-item',
+  }
 
   const shouldRenderWorkspaceHeaderGroup =
     workspaceHeader.variant === 'backToSpace' || (isUserSignedIn && !(isHydrated && isCounterfactualSafe))
@@ -66,7 +83,7 @@ export const SafeSidebarVariant = ({
     <SidebarContent>
       <motion.div variants={containerVariants} initial="hidden" animate="visible">
         {shouldRenderWorkspaceHeaderGroup && (
-          <motion.div variants={itemVariants} className="mb-2">
+          <motion.div variants={itemVariants} className="mb-4">
             <SidebarGroup className={css.sidebarGroup}>
               <SidebarMenu>
                 <SidebarMenuItem>
@@ -78,7 +95,7 @@ export const SafeSidebarVariant = ({
         )}
 
         {/* Action Button */}
-        <motion.div variants={itemVariants} className="mb-2">
+        <motion.div variants={itemVariants} className="mb-4">
           <SidebarGroup className={css.sidebarGroup}>
             <SidebarGroupContent>
               <SidebarActionButton />
@@ -94,27 +111,7 @@ export const SafeSidebarVariant = ({
                 {displayMainNavItems.map((item, index) => (
                   <NavItem key={item?.href ?? `skeleton-main-${index}`} item={item} isLoading={isLoading} />
                 ))}
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    size="lg"
-                    isActive={isSettingsActive}
-                    disabled={isLoading}
-                    className={`h-9 gap-3 ${css.sidebarInteractive} ${css.sidebarNavItem}`}
-                    render={!isLoading ? <Link href={settingsHref} /> : undefined}
-                    data-testid="sidebar-settings-item"
-                  >
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <span className="relative">
-                          <Settings className="text-muted-foreground" />
-                          {isOutdated && <span className={css.outdatedDot} aria-hidden />}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">Settings</TooltipContent>
-                    </Tooltip>
-                    <span>Settings</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <NavItem item={settingsItem} isLoading={isLoading} />
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -124,7 +121,10 @@ export const SafeSidebarVariant = ({
         {(defiGroup?.items?.length ?? 0) > 0 && (
           <motion.div variants={itemVariants}>
             <SidebarGroup className={css.sidebarGroup}>
-              <SidebarGroupLabel>{defiGroup?.label ?? ''}</SidebarGroupLabel>
+              <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">
+                {defiGroup?.label ?? ''}
+              </SidebarGroupLabel>
+              <SidebarSeparator className={css.collapsedSeparator} />
               <SidebarGroupContent>
                 <SidebarMenu className="gap-0">
                   {displayDefiItems.map((item, index) => (
@@ -135,6 +135,8 @@ export const SafeSidebarVariant = ({
             </SidebarGroup>
           </motion.div>
         )}
+
+        <SidebarDeveloperGroup isLoading={isLoading} />
       </motion.div>
     </SidebarContent>
   )

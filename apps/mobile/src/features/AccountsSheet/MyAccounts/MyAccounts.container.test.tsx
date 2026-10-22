@@ -37,13 +37,11 @@ const mockActiveSafe = { address: faker.finance.ethereumAddress() as `0x${string
 const mockChainIds = ['1'] as const
 const mockDelegates = {}
 
-// Mock Redux selectors
+// Mock Redux selectors — keep the real action creators (with .type) so any
+// slice extraReducer that does `addCase(setActiveSafe, ...)` still works.
 jest.mock('@/src/store/activeSafeSlice', () => ({
+  ...jest.requireActual('@/src/store/activeSafeSlice'),
   selectActiveSafe: () => mockActiveSafe,
-  setActiveSafe: (payload: { address: `0x${string}`; chainId: string }) => ({
-    type: 'activeSafe/setActiveSafe',
-    payload,
-  }),
 }))
 
 jest.mock('@/src/store/chains', () => ({
@@ -70,10 +68,8 @@ jest.mock('@/src/hooks/useNotificationCleanup', () => ({
   }),
 }))
 
-jest.mock('@safe-global/store/gateway/AUTO_GENERATED/delegates', () => ({
-  cgwApi: {
-    useDelegatesDeleteDelegateV2Mutation: () => [jest.fn(), { isLoading: false }],
-  },
+jest.mock('@safe-global/utils/hooks/useDelegateMutations', () => ({
+  useDelegateMutations: () => ({ addDelegate: jest.fn(), deleteDelegate: jest.fn() }),
 }))
 
 describe('MyAccountsContainer', () => {

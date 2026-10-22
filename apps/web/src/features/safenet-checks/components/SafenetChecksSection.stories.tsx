@@ -1,0 +1,196 @@
+import type { Meta, StoryObj } from '@storybook/react'
+import { http, HttpResponse } from 'msw'
+import { mswLoader } from 'msw-storybook-addon'
+import { faker } from '@faker-js/faker'
+import type { TransactionDetails } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
+import { DetailedExecutionInfoType } from '@safe-global/store/gateway/types'
+import { createMockChain } from '@safe-global/test'
+import { CheckStatus, SAFENET_ORACLE_ADDRESSES } from '@safe-global/utils/features/safenet-checks'
+import type { SafenetCheckSnapshot } from '@safe-global/utils/features/safenet-checks'
+import { buildCheckView, buildOracleProposedLog } from '@safe-global/utils/features/safenet-checks/builders'
+import type { RawLog } from '@safe-global/utils/features/safenet-checks/utils/decodeLogs'
+import { StoreDecorator } from '@/stories/storeDecorator'
+import { TxFlowContext, type TxFlowContextType } from '@/components/tx-flow/TxFlowProvider'
+import { SafenetChecksSection, SafenetChecksSectionView, type PreCheckKind } from './SafenetChecksSection'
+import {
+  SAFENET_EXAMPLE_VOTES,
+  STORY_CHAIN_ID,
+  STORY_SAFE_TX_HASH,
+  STORY_SUBMITTED_AT,
+  exampleSnapshot,
+  inProgressWithDeadline,
+  openDisputeSnapshot,
+  rejectedSnapshot,
+  timedOutDisputeSnapshot,
+} from './storyExamples'
+
+faker.seed(456)
+
+const SAFE = '0x0000000000000000000000000000000000000123'
+const SAFE_TX_HASH = `0x${'cd'.repeat(32)}`
+const SUBMITTED_AT = 1_770_000_000_000
+const HEAD_BLOCK = 40_000_000
+const BLOCK_TIME_SECONDS = 5
+// Ten minutes of blocks after the proposal, so the derived read window is real.
+const HEAD_TIMESTAMP = Math.floor(SUBMITTED_AT / 1000) + 600
+
+const RPC_URL = 'https://rpc.safe.global/100/'
+const chainConfig = http.get('*/v2/chains', () =>
+  HttpResponse.json({
+    results: [createMockChain({ chainId: '100', rpcUri: RPC_URL })],
+    next: null,
+    previous: null,
+    count: 1,
+  }),
+)
+
+const toHex = (value: number): string => `0x${value.toString(16)}`
+
+type RpcRequest = { id: number; method: string; params: unknown[] }
+
+const blockAt = (number: number) => ({
+  number: toHex(number),
+  timestamp: toHex(HEAD_TIMESTAMP - (HEAD_BLOCK - number) * BLOCK_TIME_SECONDS),
+  hash: `0x${'22'.repeat(32)}`,
+  parentHash: `0x${'33'.repeat(32)}`,
+  nonce: '0x0000000000000000',
+  difficulty: '0x0',
+  gasLimit: '0x1c9c380',
+  gasUsed: '0x0',
+  miner: `0x${'00'.repeat(20)}`,
+  extraData: '0x',
+  baseFeePerGas: '0x7',
+  transactions: [],
+})
+
+const rpcHolding = (logs: RawLog[]) =>
+  http.post(RPC_URL, async ({ request }) => {
+    const answer = (req: RpcRequest) => {
+      const ok = (result: unknown) => ({ jsonrpc: '2.0', id: req.id, result })
+      switch (req.method) {
+        case 'eth_chainId':
+          return ok('0x64')
+        case 'eth_getBlockByNumber': {
+          const tag = req.params[0] as string
+          return ok(blockAt(tag === 'latest' ? HEAD_BLOCK : Number(BigInt(tag))))
+        }
+        case 'eth_getLogs':
+          return ok(
+            logs.map((log) => ({
+              address: log.address,
+              topics: log.topics,
+              data: log.data,
+              blockNumber: toHex(log.blockNumber),
+              transactionHash: log.transactionHash,
+              transactionIndex: '0x0',
+              blockHash: `0x${'11'.repeat(32)}`,
+              logIndex: toHex(log.logIndex),
+              removed: false,
+            })),
+          )
+        default:
+          return { jsonrpc: '2.0', id: req.id, error: { code: 3, message: `unhandled ${req.method}` } }
+      }
+    }
+
+    const body = (await request.json()) as RpcRequest | RpcRequest[]
+    return HttpResponse.json(Array.isArray(body) ? body.map(answer) : answer(body))
+  })
+
+const unreachableRpc = http.post(RPC_URL, () => new HttpResponse(null, { status: 503 }))
+
+const txDetails = {
+  detailedExecutionInfo: { type: DetailedExecutionInfoType.MULTISIG, submittedAt: SUBMITTED_AT },
+} as unknown as TransactionDetails
+
+const flow = { txId: `multisig_${SAFE}_${SAFE_TX_HASH}`, txDetails } as TxFlowContextType
+
+const meta: Meta<typeof SafenetChecksSection> = {
+  title: 'Features/SafenetChecks/SafenetChecksSection',
+  component: SafenetChecksSection,
+  // The copy appears only after a chain read and a fade-in, so a pixel baseline
+  // would race the poll loop.
+  parameters: { layout: 'centered', visualTest: { disable: true } },
+  loaders: [mswLoader],
+  decorators: [
+    (Story, context) => (
+      <StoreDecorator initialState={{}} context={context}>
+        <TxFlowContext.Provider value={flow}>
+          <div className="bg-background w-80 rounded-lg">
+            <Story />
+          </div>
+        </TxFlowContext.Provider>
+      </StoreDecorator>
+    ),
+  ],
+  tags: ['autodocs'],
+}
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const NoCheckRequested: Story = {
+  loaders: [mswLoader],
+  parameters: {
+    msw: { handlers: [chainConfig, rpcHolding([])] },
+    docs: { description: { story: 'Normal on beta today: nothing requested a check for this transaction.' } },
+  },
+}
+
+export const ReadFailed: Story = {
+  loaders: [mswLoader],
+  parameters: {
+    msw: { handlers: [chainConfig, unreachableRpc] },
+    docs: { description: { story: 'A problem: the chain read failed, so no state can be reported.' } },
+  },
+}
+
+export const Submitted: Story = {
+  loaders: [mswLoader],
+  parameters: {
+    msw: {
+      handlers: [
+        chainConfig,
+        rpcHolding([
+          buildOracleProposedLog(
+            { safeTxHash: SAFE_TX_HASH, epoch: 32_939n, oracle: SAFENET_ORACLE_ADDRESSES[0] },
+            { blockNumber: HEAD_BLOCK - 20 },
+          ),
+        ]),
+      ],
+    },
+    docs: { description: { story: 'A check was proposed onchain and is inside its deadline.' } },
+  },
+}
+
+type ViewCheck = Parameters<typeof SafenetChecksSectionView>[0]['check']
+
+const verdict = (snapshot: SafenetCheckSnapshot): ViewCheck =>
+  buildCheckView({ snapshot, status: snapshot.status, publicStatus: snapshot.status as ViewCheck['publicStatus'] })
+
+const viewStory = (check: ViewCheck, preCheck?: PreCheckKind): Story => ({
+  render: () => (
+    <SafenetChecksSectionView
+      check={check}
+      safeTxHash={STORY_SAFE_TX_HASH}
+      chainId={STORY_CHAIN_ID}
+      submittedAt={STORY_SUBMITTED_AT}
+      preCheck={preCheck}
+    />
+  ),
+})
+
+export const PreCheck = viewStory(buildCheckView(), 'multisig')
+export const StatusUnknown = viewStory(
+  buildCheckView({
+    snapshot: exampleSnapshot(CheckStatus.SUBMITTED, { status: CheckStatus.UNAVAILABLE }),
+    unavailableReason: 'WINDOW_UNCERTAIN',
+  }),
+)
+export const Simulating = viewStory(verdict(inProgressWithDeadline()))
+export const NoIssuesFound = viewStory(verdict(exampleSnapshot(CheckStatus.BENIGN)))
+export const RiskDetected = viewStory(verdict(rejectedSnapshot(SAFENET_EXAMPLE_VOTES.approvalAndSpender)))
+export const RiskSettingsChange = viewStory(verdict(rejectedSnapshot(SAFENET_EXAMPLE_VOTES.settingsChange)))
+export const RiskMaliciousAddress = viewStory(verdict(rejectedSnapshot(SAFENET_EXAMPLE_VOTES.blocklisted)))
+export const UnderReview = viewStory(verdict(openDisputeSnapshot()))
+export const CheckFailed = viewStory(verdict(timedOutDisputeSnapshot()))
