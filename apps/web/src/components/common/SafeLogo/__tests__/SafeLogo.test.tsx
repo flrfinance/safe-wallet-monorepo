@@ -46,32 +46,3 @@ describe('SafeLogo', () => {
     expect(screen.getByRole('link')).not.toHaveTextContent('Home')
   })
 })
-
-describe('SafeLogo with a custom brand', () => {
-  const renderBranded = (isOfficialHost: boolean) => {
-    jest.isolateModules(() => {
-      jest.doMock('@/config/constants', () => ({
-        ...jest.requireActual('@/config/constants'),
-        IS_OFFICIAL_HOST: isOfficialHost,
-        BRAND_LOGO: '/images/brand.svg',
-        BRAND_NAME: 'Brand',
-      }))
-      const { default: BrandedSafeLogo } = require('../index')
-      render(<BrandedSafeLogo />)
-    })
-  }
-
-  afterEach(() => jest.dontMock('@/config/constants'))
-
-  it('renders the brand logo on non-official hosts', () => {
-    renderBranded(false)
-    const img = screen.getByTestId('logo-image')
-    expect(img).toHaveAttribute('src', '/images/brand.svg')
-    expect(img).toHaveAttribute('alt', 'Brand')
-  })
-
-  it('keeps the Safe logo on official hosts', () => {
-    renderBranded(true)
-    expect(screen.getByTestId('logo-image')).toHaveAttribute('alt', 'Safe')
-  })
-})

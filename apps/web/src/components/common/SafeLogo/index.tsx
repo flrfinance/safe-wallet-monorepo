@@ -1,38 +1,25 @@
 import type { ReactElement } from 'react'
 import Link from 'next/link'
 import { AppRoutes } from '@/config/routes'
-import { BRAND_LOGO, BRAND_NAME, IS_OFFICIAL_HOST } from '@/config/constants'
 import { cn } from '@safe-global/views/utils/cn'
 import ProChip from '@/public/images/safe-pro/pro-chip.svg'
 import css from './SafeLogo.module.css'
 
-const BrandLogoMark = (): ReactElement => (
-  <img
-    src={BRAND_LOGO}
-    alt={BRAND_NAME}
-    className="h-6 w-auto max-w-32 group-data-[collapsible=icon]:h-4.5 dark:invert"
-    data-testid="logo-image"
-  />
+const LogoMark = (): ReactElement => (
+  <>
+    <img
+      src="/images/logo-no-text.svg"
+      alt="Safe"
+      width={24}
+      height={24}
+      className="size-6 group-data-[collapsible=icon]:size-4.5 dark:hidden"
+      data-testid="logo-image"
+    />
+    <span
+      className={`hidden dark:block size-6 group-data-[collapsible=icon]:size-4.5 shrink-0 rounded-[2px] ${css.logoPrimaryFill}`}
+    />
+  </>
 )
-
-const LogoMark = (): ReactElement =>
-  !IS_OFFICIAL_HOST && BRAND_LOGO ? (
-    <BrandLogoMark />
-  ) : (
-    <>
-      <img
-        src="/images/logo-no-text.svg"
-        alt="Safe"
-        width={24}
-        height={24}
-        className="size-6 group-data-[collapsible=icon]:size-4.5 dark:hidden"
-        data-testid="logo-image"
-      />
-      <span
-        className={`hidden dark:block size-6 group-data-[collapsible=icon]:size-4.5 shrink-0 rounded-[2px] ${css.logoPrimaryFill}`}
-      />
-    </>
-  )
 
 const SafeLogo = ({
   href = AppRoutes.welcome.spaces,
@@ -75,7 +62,7 @@ const SafeLogo = ({
     <Link
       href={href}
       data-testid={testId}
-      className={cn('flex h-6 min-w-6 shrink-0 items-center justify-center', className)}
+      className={cn('flex size-6 shrink-0 items-center justify-center', className)}
     >
       <LogoMark />
     </Link>

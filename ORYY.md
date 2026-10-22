@@ -14,7 +14,7 @@ This branch (`oryy`) contains branding customizations on top of the Safe Wallet 
 
 ### Branding (logo, welcome page text)
 
-- `apps/web/src/components/common/SafeLogo/index.tsx` — shows BRAND_LOGO (inverted in dark mode) instead of the Safe mark for non-official hosts
+- `apps/web/public/images/logo-no-text.svg` + `packages/views/src/assets/images/logo-no-text.svg` — Safe mark replaced with the ORYY mark (used by sidebar, launch screen, onboarding, captcha, WalletConnect, etc.)
 - `apps/web/src/styles/shadcn.css` — also overrides dark `--accent` with a purple tint
 - `packages/theme/src/generators/tamagui.test.ts` — expectations updated to brand primaries
 
